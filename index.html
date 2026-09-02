@@ -82,25 +82,25 @@
         </div>
       </div>
 
-      <div class="form-group">
-        <h2>Special & Other Elements</h2>
-        <div class="form-row">
-          <button class="secondary" onclick="addSunElement()">☀️ Add Sun</button>
-          <button class="secondary" onclick="addCoatOfArmsPreset()">🛡️ Shield Crest</button>
-        </div>
+        <div class="form-group">
+          <h2>Special & Other Elements</h2>
+          <div class="form-row">
+            <button class="secondary" onclick="addSunElement()">☀️ Add Sun</button>
+            <button class="secondary" onclick="addCoatOfArmsPreset()">🛡️ Shield Crest</button>
+          </div>
 
-        <div class="form-row" style="margin-top: 0.75rem;">
-          <label for="wiki-coat-select" style="font-size: 0.85rem; width: 100%;">
-            <strong>Wikipedia State Coat of Arms:</strong>
-          </label>
+          <div class="form-row" style="margin-top: 0.75rem;">
+            <label for="emblem-select" style="font-size: 0.85rem; width: 100%;">
+              <strong>National Emblem / Coat of Arms:</strong>
+            </label>
+          </div>
+          <div class="form-row" style="margin-top: 0.25rem;">
+            <select id="emblem-select" style="flex: 1;">
+              <option value="">Loading emblems...</option>
+            </select>
+            <button class="primary" id="add-emblem-btn" onclick="addSelectedEmblem()">+ Add</button>
+          </div>
         </div>
-        <div class="form-row" style="margin-top: 0.25rem;">
-          <select id="wiki-coat-select" style="flex: 1;">
-            <option value="">Loading Wikipedia gallery...</option>
-          </select>
-          <button class="primary" id="add-wiki-coat-btn" onclick="addSelectedWikipediaCoat()">+ Add</button>
-        </div>
-      </div>
 
       <div class="form-group">
         <h2>Active Layer Stack</h2>
