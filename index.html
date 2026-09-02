@@ -11,10 +11,19 @@
   <header>
     <h1>Flag Assembler</h1>
     <div class="target-bar">
-      <label for="country-search"><strong>Lookup Target Flag:</strong></label>
-      <input type="text" id="country-search" list="country-list" placeholder="Loading countries..." onchange="handleCountrySelect(this.value)" disabled>
+      <button id="daily-btn" class="primary" onclick="loadDailyChallenge()">📅 Daily Challenge</button>
+      <label for="country-search"><strong>Free Search:</strong></label>
+      <input 
+        type="text" 
+        id="country-search" 
+        list="country-list" 
+        placeholder="Search country..." 
+        oninput="handleCountrySelect(this.value)" 
+        onfocus="this.select()"
+        disabled
+      >
       <datalist id="country-list"></datalist>
-      <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">[Max 20 pts]</span>
+      <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">Loading...</span>
     </div>
   </header>
 

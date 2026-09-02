@@ -21,45 +21,229 @@ let activeGuides = [];
 
 const svg = document.getElementById('flag-svg');
 
-async function initCountryLookup() {
+// Static country array to avoid API limitations and rate limits
+const STATIC_COUNTRIES = [
+  { name: "Afghanistan", code: "af" },
+  { name: "Albania", code: "al" },
+  { name: "Algeria", code: "dz" },
+  { name: "Andorra", code: "ad" },
+  { name: "Angola", code: "ao" },
+  { name: "Argentina", code: "ar" },
+  { name: "Armenia", code: "am" },
+  { name: "Australia", code: "au" },
+  { name: "Austria", code: "at" },
+  { name: "Azerbaijan", code: "az" },
+  { name: "Bahamas", code: "bs" },
+  { name: "Bahrain", code: "bh" },
+  { name: "Bangladesh", code: "bd" },
+  { name: "Barbados", code: "bb" },
+  { name: "Belarus", code: "by" },
+  { name: "Belgium", code: "be" },
+  { name: "Belize", code: "bz" },
+  { name: "Benin", code: "bj" },
+  { name: "Bhutan", code: "bt" },
+  { name: "Bolivia", code: "bo" },
+  { name: "Bosnia and Herzegovina", code: "ba" },
+  { name: "Botswana", code: "bw" },
+  { name: "Brazil", code: "br" },
+  { name: "Brunei", code: "bn" },
+  { name: "Bulgaria", code: "bg" },
+  { name: "Burkina Faso", code: "bf" },
+  { name: "Burundi", code: "bi" },
+  { name: "Cambodia", code: "kh" },
+  { name: "Cameroon", code: "cm" },
+  { name: "Canada", code: "ca" },
+  { name: "Central African Republic", code: "cf" },
+  { name: "Chad", code: "td" },
+  { name: "Chile", code: "cl" },
+  { name: "China", code: "cn" },
+  { name: "Colombia", code: "co" },
+  { name: "Costa Rica", code: "cr" },
+  { name: "Croatia", code: "hr" },
+  { name: "Cuba", code: "cu" },
+  { name: "Cyprus", code: "cy" },
+  { name: "Czech Republic", code: "cz" },
+  { name: "Denmark", code: "dk" },
+  { name: "Djibouti", code: "dj" },
+  { name: "Dominica", code: "dm" },
+  { name: "Dominican Republic", code: "do" },
+  { name: "Ecuador", code: "ec" },
+  { name: "Egypt", code: "eg" },
+  { name: "El Salvador", code: "sv" },
+  { name: "Estonia", code: "ee" },
+  { name: "Ethiopia", code: "et" },
+  { name: "Fiji", code: "fj" },
+  { name: "Finland", code: "fi" },
+  { name: "France", code: "fr" },
+  { name: "Gabon", code: "ga" },
+  { name: "Gambia", code: "gm" },
+  { name: "Georgia", code: "ge" },
+  { name: "Germany", code: "de" },
+  { name: "Ghana", code: "gh" },
+  { name: "Greece", code: "gr" },
+  { name: "Guatemala", code: "gt" },
+  { name: "Guinea", code: "gn" },
+  { name: "Haiti", code: "ht" },
+  { name: "Honduras", code: "hn" },
+  { name: "Hungary", code: "hu" },
+  { name: "Iceland", code: "is" },
+  { name: "India", code: "in" },
+  { name: "Indonesia", code: "id" },
+  { name: "Iran", code: "ir" },
+  { name: "Iraq", code: "iq" },
+  { name: "Ireland", code: "ie" },
+  { name: "Israel", code: "il" },
+  { name: "Italy", code: "it" },
+  { name: "Jamaica", code: "jm" },
+  { name: "Japan", code: "jp" },
+  { name: "Jordan", code: "jo" },
+  { name: "Kazakhstan", code: "kz" },
+  { name: "Kenya", code: "ke" },
+  { name: "Kuwait", code: "kw" },
+  { name: "Laos", code: "la" },
+  { name: "Latvia", code: "lv" },
+  { name: "Lebanon", code: "lb" },
+  { name: "Liberia", code: "lr" },
+  { name: "Libya", code: "ly" },
+  { name: "Lithuania", code: "lt" },
+  { name: "Luxembourg", code: "lu" },
+  { name: "Madagascar", code: "mg" },
+  { name: "Malawi", code: "mw" },
+  { name: "Malaysia", code: "my" },
+  { name: "Maldives", code: "mv" },
+  { name: "Mali", code: "ml" },
+  { name: "Malta", code: "mt" },
+  { name: "Mauritania", code: "mr" },
+  { name: "Mauritius", code: "mu" },
+  { name: "Mexico", code: "mx" },
+  { name: "Moldova", code: "md" },
+  { name: "Monaco", code: "mc" },
+  { name: "Mongolia", code: "mn" },
+  { name: "Montenegro", code: "me" },
+  { name: "Morocco", code: "ma" },
+  { name: "Mozambique", code: "mz" },
+  { name: "Myanmar", code: "mm" },
+  { name: "Namibia", code: "na" },
+  { name: "Nepal", code: "np" },
+  { name: "Netherlands", code: "nl" },
+  { name: "New Zealand", code: "nz" },
+  { name: "Nicaragua", code: "ni" },
+  { name: "Niger", code: "ne" },
+  { name: "Nigeria", code: "ng" },
+  { name: "North Korea", code: "kp" },
+  { name: "North Macedonia", code: "mk" },
+  { name: "Norway", code: "no" },
+  { name: "Oman", code: "om" },
+  { name: "Pakistan", code: "pk" },
+  { name: "Panama", code: "pa" },
+  { name: "Papua New Guinea", code: "pg" },
+  { name: "Paraguay", code: "py" },
+  { name: "Peru", code: "pe" },
+  { name: "Philippines", code: "ph" },
+  { name: "Poland", code: "pl" },
+  { name: "Portugal", code: "pt" },
+  { name: "Qatar", code: "qa" },
+  { name: "Romania", code: "ro" },
+  { name: "Russia", code: "ru" },
+  { name: "Rwanda", code: "rw" },
+  { name: "Saudi Arabia", code: "sa" },
+  { name: "Senegal", code: "sn" },
+  { name: "Serbia", code: "rs" },
+  { name: "Sierra Leone", code: "sl" },
+  { name: "Singapore", code: "sg" },
+  { name: "Slovakia", code: "sk" },
+  { name: "Slovenia", code: "si" },
+  { name: "Somalia", code: "so" },
+  { name: "South Africa", code: "za" },
+  { name: "South Korea", code: "kr" },
+  { name: "Spain", code: "es" },
+  { name: "Sri Lanka", code: "lk" },
+  { name: "Sudan", code: "sd" },
+  { name: "Sweden", code: "se" },
+  { name: "Switzerland", code: "ch" },
+  { name: "Syria", code: "sy" },
+  { name: "Taiwan", code: "tw" },
+  { name: "Tanzania", code: "tz" },
+  { name: "Thailand", code: "th" },
+  { name: "Togo", code: "tg" },
+  { name: "Trinidad and Tobago", code: "tt" },
+  { name: "Tunisia", code: "tn" },
+  { name: "Turkey", code: "tr" },
+  { name: "Uganda", code: "ug" },
+  { name: "Ukraine", code: "ua" },
+  { name: "United Arab Emirates", code: "ae" },
+  { name: "United Kingdom", code: "gb" },
+  { name: "United States", code: "us" },
+  { name: "Uruguay", code: "uy" },
+  { name: "Uzbekistan", code: "uz" },
+  { name: "Venezuela", code: "ve" },
+  { name: "Vietnam", code: "vn" },
+  { name: "Yemen", code: "ye" },
+  { name: "Zambia", code: "zm" },
+  { name: "Zimbabwe", code: "zw" }
+];
+
+// Deterministic algorithm for daily country selection based on UTC YYYYMMDD
+function getDailyCountry(countries) {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  
+  const seed = parseInt(`${year}${month}${day}`, 10);
+  const x = Math.sin(seed) * 10000;
+  const pseudoRandomFloat = x - Math.floor(x);
+  
+  const dailyIndex = Math.floor(pseudoRandomFloat * countries.length);
+  return countries[dailyIndex];
+}
+
+function loadDailyChallenge() {
+  const searchInput = document.getElementById('country-search');
+  const dailyCountry = getDailyCountry(countryList);
+  if (dailyCountry) {
+    currentTarget = dailyCountry;
+    if (searchInput) searchInput.value = dailyCountry.name;
+    const targetSpan = document.getElementById('target-points');
+    if (targetSpan) {
+      targetSpan.textContent = `Daily Challenge: ${dailyCountry.name} [Max 20 pts]`;
+    }
+    clearCanvas();
+  }
+}
+
+function initCountryLookup() {
   const searchInput = document.getElementById('country-search');
   const dataList = document.getElementById('country-list');
 
-  try {
-    const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-    
-    const data = await res.json();
-    countryList = data.map(c => ({
-      name: c.name.common,
-      code: c.cca2.toLowerCase(),
-      flagUrl: `https://flagcdn.com/w640/${c.cca2.toLowerCase()}.png`
-    })).sort((a, b) => a.name.localeCompare(b.name));
+  countryList = STATIC_COUNTRIES.map(c => ({
+    name: c.name,
+    code: c.code,
+    flagUrl: `https://flagcdn.com/w640/${c.code}.png`
+  })).sort((a, b) => a.name.localeCompare(b.name));
 
-    dataList.innerHTML = '';
-    countryList.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.name;
-      dataList.appendChild(opt);
-    });
+  dataList.innerHTML = '';
+  countryList.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    dataList.appendChild(opt);
+  });
 
-    searchInput.placeholder = "Type country name (e.g. Japan)...";
-    searchInput.disabled = false;
-    searchInput.value = "Japan";
+  searchInput.placeholder = "Type country name (e.g. France)...";
+  searchInput.disabled = false;
 
-    const initial = countryList.find(c => c.name.toLowerCase() === "japan") || countryList[0];
-    if (initial) currentTarget = initial;
-
-  } catch (err) {
-    console.error("Failed to load country list from API:", err);
-    searchInput.placeholder = "Lookup failed - Check connection";
-  }
+  // Load UTC Daily Challenge by default on start
+  loadDailyChallenge();
 }
 
 function handleCountrySelect(val) {
   const found = countryList.find(c => c.name.toLowerCase() === val.trim().toLowerCase());
   if (found) {
     currentTarget = found;
+    const targetSpan = document.getElementById('target-points');
+    if (targetSpan) {
+      targetSpan.textContent = `Target: ${found.name} [Max 20 pts]`;
+    }
     clearCanvas();
   }
 }
