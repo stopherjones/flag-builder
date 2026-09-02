@@ -1,11 +1,15 @@
 const COLOR_HEX_MAP = {
-  "Black": "#000000",
-  "Blue": "#00247d",
-  "Green": "#009a49",
-  "Orange": "#ff8200",
+  "Deep red": "#8b0000",
   "Red": "#ce1126",
+  "Orange": "#ff8200",
+  "Yellow": "#fcd116",
+  "Deep green": "#006b3c",
+  "Green": "#009a49",
+  "Deep blue": "#00247d",
+  "Blue": "#0057b7",
+  "Light blue": "#5bcefa",
   "White": "#ffffff",
-  "Yellow": "#fcd116"
+  "Black": "#000000"
 };
 
 let countryList = [];
@@ -200,14 +204,48 @@ function loadDailyChallenge() {
   const searchInput = document.getElementById('country-search');
   const dailyCountry = getDailyCountry(countryList);
   if (dailyCountry) {
+    setGameMode('daily');
     currentTarget = dailyCountry;
     if (searchInput) searchInput.value = dailyCountry.name;
     const targetSpan = document.getElementById('target-points');
     if (targetSpan) {
-      targetSpan.textContent = `Daily Challenge: ${dailyCountry.name} [Max 20 pts]`;
+      targetSpan.textContent = 'Max 20 pts';
     }
     clearCanvas();
   }
+}
+
+function setGameMode(mode) {
+  const dailyButton = document.getElementById('daily-btn');
+  const freePlayButton = document.getElementById('free-play-btn');
+  const isDaily = mode === 'daily';
+
+  dailyButton.classList.toggle('primary', isDaily);
+  freePlayButton.classList.toggle('primary', !isDaily);
+  dailyButton.setAttribute('aria-pressed', String(isDaily));
+  freePlayButton.setAttribute('aria-pressed', String(!isDaily));
+}
+
+function setFreePlay() {
+  setGameMode('free');
+  const searchInput = document.getElementById('country-search');
+  if (searchInput) searchInput.value = '';
+  const targetSpan = document.getElementById('target-points');
+  if (targetSpan) targetSpan.textContent = 'Max 20 pts';
+}
+
+function loadRandomCountry() {
+  if (!countryList.length) return;
+
+  const randomIndex = Math.floor(Math.random() * countryList.length);
+  const randomCountry = countryList[randomIndex];
+  currentTarget = randomCountry;
+
+  setFreePlay();
+  const searchInput = document.getElementById('country-search');
+  if (searchInput) searchInput.value = randomCountry.name;
+
+  clearCanvas();
 }
 
 function initCountryLookup() {
@@ -229,78 +267,49 @@ function initCountryLookup() {
 
   searchInput.placeholder = "Type country name (e.g. France)...";
   searchInput.disabled = false;
+  document.getElementById('random-country-btn').disabled = false;
 
   loadDailyChallenge();
-  loadWikipediaArmorial();
+  loadEmblems();
 }
 
-async function loadWikipediaArmorial() {
-  const selectEl = document.getElementById('wiki-coat-select');
+async function loadEmblems() {
+  const selectEl = document.getElementById('emblem-select');
   if (!selectEl) return;
 
   try {
-    const wikiApiUrl = 'https://en.wikipedia.org/w/api.php?action=parse&page=Armorial_of_sovereign_states&prop=text&format=json&origin=*';
-    const response = await fetch(wikiApiUrl);
-    const data = await response.json();
+    const response = await fetch('emblems.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(data.parse.text['*'], 'text/html');
+    const emblemMap = await response.json();
+    const items = Object.entries(emblemMap)
+      .filter(([name, url]) => name && typeof url === 'string' && url)
+      .sort(([nameA], [nameB]) => nameA.localeCompare(nameB));
 
-    const items = [];
-    const containers = doc.querySelectorAll('.gallerybox, .wikitable td, .thumb');
-
-    containers.forEach(box => {
-      const img = box.querySelector('img');
-      if (!img) return;
-
-      let src = img.getAttribute('src');
-      if (!src) return;
-
-      if (src.startsWith('//')) src = 'https:' + src;
-
-      // Upscale image resolution for flag stage clarity
-      src = src.replace(/\/\d+px-/, '/300px-');
-
-      let name = box.textContent.trim().split('\n')[0];
-      const altText = img.getAttribute('alt') || '';
-
-      if (altText && altText.length > 2) {
-        name = altText;
-      }
-
-      name = name
-        .replace(/^Coat of arms of /i, '')
-        .replace(/^Emblem of /i, '')
-        .replace(/[\r\n]+/g, ' ')
-        .trim();
-
-      if (name && name.length > 1 && !items.some(i => i.url === src)) {
-        items.push({ name: name, url: src });
-      }
-    });
-
-    items.sort((a, b) => a.name.localeCompare(b.name));
-
-    selectEl.innerHTML = '<option value="">-- Select State Crest --</option>';
-    items.forEach(item => {
+    selectEl.innerHTML = '<option value="">-- Select National Emblem --</option>';
+    items.forEach(([name, url]) => {
       const opt = document.createElement('option');
-      opt.value = item.url;
-      opt.textContent = item.name;
+      opt.value = url;
+      opt.textContent = name;
       selectEl.appendChild(opt);
     });
 
+    selectEl.disabled = false;
+    const addButton = document.getElementById('add-emblem-btn');
+    if (addButton) addButton.disabled = false;
   } catch (err) {
-    console.error("Error loading Wikipedia armorial:", err);
-    selectEl.innerHTML = '<option value="">Failed to load Wikipedia list</option>';
+    console.error("Error loading emblems.json:", err);
+    selectEl.innerHTML = '<option value="">Unable to load emblems</option>';
+    selectEl.disabled = true;
   }
 }
 
-async function addSelectedWikipediaCoat() {
-  const selectEl = document.getElementById('wiki-coat-select');
+async function addSelectedEmblem() {
+  const selectEl = document.getElementById('emblem-select');
   const imgUrl = selectEl.value;
   if (!imgUrl) return;
 
-  const addBtn = document.getElementById('add-wiki-coat-btn');
+  const addBtn = document.getElementById('add-emblem-btn');
   if (addBtn) {
     addBtn.textContent = 'Loading...';
     addBtn.disabled = true;
@@ -337,7 +346,7 @@ async function addSelectedWikipediaCoat() {
     reader.readAsDataURL(blob);
   } catch (err) {
     console.error("Failed to load Wikimedia image:", err);
-    alert("Could not load selected Wikipedia coat of arms image.");
+    alert("Could not load the selected emblem image.");
     if (addBtn) {
       addBtn.textContent = '+ Add';
       addBtn.disabled = false;
@@ -348,10 +357,11 @@ async function addSelectedWikipediaCoat() {
 function handleCountrySelect(val) {
   const found = countryList.find(c => c.name.toLowerCase() === val.trim().toLowerCase());
   if (found) {
+    setGameMode('free');
     currentTarget = found;
     const targetSpan = document.getElementById('target-points');
     if (targetSpan) {
-      targetSpan.textContent = `Target: ${found.name} [Max 20 pts]`;
+      targetSpan.textContent = 'Max 20 pts';
     }
     clearCanvas();
   }
@@ -360,7 +370,22 @@ function handleCountrySelect(val) {
 function toggleShapeSubOptions() {
   const shape = document.getElementById('shape-type').value;
   const starOpts = document.getElementById('star-options');
+  const crossOpts = document.getElementById('cross-options');
   starOpts.style.display = (shape === 'Star') ? 'flex' : 'none';
+  crossOpts.style.display = (shape === 'Cross') ? 'flex' : 'none';
+}
+
+function selectColor(colorName) {
+  document.querySelectorAll('.color-swatch').forEach(swatch => {
+    const isSelected = swatch.dataset.color === colorName;
+    swatch.classList.toggle('selected', isSelected);
+    swatch.setAttribute('aria-pressed', String(isSelected));
+  });
+}
+
+function getSelectedColor() {
+  const selectedSwatch = document.querySelector('.color-swatch.selected');
+  return selectedSwatch ? selectedSwatch.dataset.color : 'Red';
 }
 
 function generateStarPointsSVG(numPoints, outerR = 100, innerR = 40) {
@@ -390,12 +415,16 @@ function getShapeBaseDimensions(shape) {
 
 function addElement() {
   const shape = document.getElementById('shape-type').value;
-  const colorName = document.getElementById('shape-color').value;
+  const colorName = getSelectedColor();
   const starPoints = parseInt(document.getElementById('star-points').value, 10) || 5;
+  const crossStyle = document.getElementById('cross-style').value;
+  const crossThickness = parseInt(document.getElementById('cross-thickness').value, 10) || 35;
 
   const newLayer = {
     id: Date.now(),
     shape: shape,
+    crossStyle: crossStyle,
+    crossThickness: crossThickness,
     pointsCount: starPoints,
     color: colorName,
     hex: COLOR_HEX_MAP[colorName] || "#ffffff",
@@ -412,7 +441,7 @@ function addElement() {
 }
 
 function addSunElement() {
-  const colorName = document.getElementById('shape-color').value;
+  const colorName = getSelectedColor();
   const newLayer = {
     id: Date.now(),
     shape: 'Sun',
@@ -430,7 +459,7 @@ function addSunElement() {
 }
 
 function addCoatOfArmsPreset() {
-  const colorName = document.getElementById('shape-color').value;
+  const colorName = getSelectedColor();
   const newLayer = {
     id: Date.now(),
     shape: 'Shield',
@@ -533,11 +562,30 @@ function renderLayers() {
     } else if (layer.shape === 'Cross') {
       const crossG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       crossG.setAttribute('fill', layer.hex);
-      const v = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      v.setAttribute('x', -25); v.setAttribute('y', -100); v.setAttribute('width', 50); v.setAttribute('height', 200);
-      const h = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      h.setAttribute('x', -100); h.setAttribute('y', -25); h.setAttribute('width', 200); h.setAttribute('height', 50);
-      crossG.appendChild(v); crossG.appendChild(h);
+      const crossStyle = layer.crossStyle || 'regular';
+      const crossThickness = layer.crossThickness || 35;
+
+      if (crossStyle === 'saltaire') {
+        const diagonal = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        diagonal.setAttribute('d', 'M -100,-100 L 100,100 M 100,-100 L -100,100');
+        diagonal.setAttribute('fill', 'none');
+        diagonal.setAttribute('stroke', layer.hex);
+        diagonal.setAttribute('stroke-width', crossThickness);
+        diagonal.setAttribute('stroke-linecap', 'butt');
+        crossG.appendChild(diagonal);
+      } else if (crossStyle === 'nordic') {
+        const vertical = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        vertical.setAttribute('x', -50); vertical.setAttribute('y', -100); vertical.setAttribute('width', crossThickness); vertical.setAttribute('height', 200);
+        const horizontal = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        horizontal.setAttribute('x', -100); horizontal.setAttribute('y', -crossThickness / 2); horizontal.setAttribute('width', 200); horizontal.setAttribute('height', crossThickness);
+        crossG.appendChild(vertical); crossG.appendChild(horizontal);
+      } else {
+        const vertical = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        vertical.setAttribute('x', -crossThickness / 2); vertical.setAttribute('y', -100); vertical.setAttribute('width', crossThickness); vertical.setAttribute('height', 200);
+        const horizontal = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        horizontal.setAttribute('x', -100); horizontal.setAttribute('y', -crossThickness / 2); horizontal.setAttribute('width', 200); horizontal.setAttribute('height', crossThickness);
+        crossG.appendChild(vertical); crossG.appendChild(horizontal);
+      }
       elemGroup.appendChild(crossG);
     } else if (layer.shape === 'Sun') {
       const sunG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -685,7 +733,12 @@ function renderLayerList() {
     item.className = `layer-item ${layer.id === selectedId ? 'active' : ''}`;
     item.onclick = () => selectLayer(layer.id);
 
-    const labelName = layer.shape === 'Star' ? `Star (${layer.pointsCount} pt)` : layer.shape;
+    let labelName = layer.shape;
+    if (layer.shape === 'Star') labelName = `Star (${layer.pointsCount} pt)`;
+    if (layer.shape === 'Cross') {
+      const crossLabels = { regular: 'Regular cross', saltaire: 'Saltaire', nordic: 'Nordic cross' };
+      labelName = crossLabels[layer.crossStyle] || 'Regular cross';
+    }
 
     item.innerHTML = `
       <div style="display:flex; align-items:center;">
@@ -802,34 +855,50 @@ window.onmousemove = (e) => {
     activeLayer.rotation = finalAngle;
 
   } else {
-    const rad = -activeLayer.rotation * (Math.PI / 180);
-    const dxGlobal = pt.x - activeLayer.x;
-    const dyGlobal = pt.y - activeLayer.y;
-
-    const localX = dxGlobal * Math.cos(rad) - dyGlobal * Math.sin(rad);
-    const localY = dxGlobal * Math.sin(rad) + dyGlobal * Math.cos(rad);
+    const rotation = activeLayer.rotation * (Math.PI / 180);
+    const inverseRotation = -rotation;
+    const dxGlobal = pt.x - layerStart.x;
+    const dyGlobal = pt.y - layerStart.y;
+    const localX = dxGlobal * Math.cos(inverseRotation) - dyGlobal * Math.sin(inverseRotation);
+    const localY = dxGlobal * Math.sin(inverseRotation) + dyGlobal * Math.cos(inverseRotation);
 
     const base = getShapeBaseDimensions(activeLayer.shape);
+    const startHalfWidth = (base.w / 2) * layerStart.scaleX;
+    const startHalfHeight = (base.h / 2) * layerStart.scaleY;
+    const isEast = ['e', 'ne', 'se'].includes(dragMode);
+    const isSouth = ['s', 'se', 'sw'].includes(dragMode);
     const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dragMode);
+    let centerX = 0;
+    let centerY = 0;
 
     if (isCorner) {
-      const startAspect = layerStart.scaleX / layerStart.scaleY;
-      const scaleXCandidate = Math.abs(localX) / (base.w / 2);
-      const scaleYCandidate = Math.abs(localY) / (base.h / 2);
+      const anchorX = isEast ? -startHalfWidth : startHalfWidth;
+      const anchorY = isSouth ? -startHalfHeight : startHalfHeight;
+      const width = Math.max(base.w * 0.1, isEast ? localX - anchorX : anchorX - localX);
+      const height = Math.max(base.h * 0.1, isSouth ? localY - anchorY : anchorY - localY);
 
-      const targetScaleX = Math.max(0.1, Math.max(scaleXCandidate, scaleYCandidate * startAspect));
-      
-      activeLayer.scaleX = targetScaleX;
-      activeLayer.scaleY = Math.max(0.1, targetScaleX / startAspect);
-    } else {
-      if (dragMode === 'e' || dragMode === 'w') {
-        const newHw = Math.abs(localX);
-        activeLayer.scaleX = Math.max(0.1, (newHw * 2) / base.w);
-      } else if (dragMode === 'n' || dragMode === 's') {
-        const newHh = Math.abs(localY);
-        activeLayer.scaleY = Math.max(0.1, (newHh * 2) / base.h);
-      }
+      activeLayer.scaleX = width / base.w;
+      activeLayer.scaleY = height / base.h;
+      centerX = anchorX + (isEast ? width : -width) / 2;
+      centerY = anchorY + (isSouth ? height : -height) / 2;
+    } else if (dragMode === 'e' || dragMode === 'w') {
+      const anchorX = dragMode === 'e' ? -startHalfWidth : startHalfWidth;
+      const width = Math.max(base.w * 0.1, dragMode === 'e' ? localX - anchorX : anchorX - localX);
+
+      activeLayer.scaleX = width / base.w;
+      centerX = anchorX + (dragMode === 'e' ? width : -width) / 2;
+    } else if (dragMode === 'n' || dragMode === 's') {
+      const anchorY = dragMode === 's' ? -startHalfHeight : startHalfHeight;
+      const height = Math.max(base.h * 0.1, dragMode === 's' ? localY - anchorY : anchorY - localY);
+
+      activeLayer.scaleY = height / base.h;
+      centerY = anchorY + (dragMode === 's' ? height : -height) / 2;
     }
+
+    const centerOffsetX = centerX * Math.cos(rotation) - centerY * Math.sin(rotation);
+    const centerOffsetY = centerX * Math.sin(rotation) + centerY * Math.cos(rotation);
+    activeLayer.x = layerStart.x + centerOffsetX;
+    activeLayer.y = layerStart.y + centerOffsetY;
   }
 
   render();
@@ -945,4 +1014,8 @@ function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
 }
 
+document.querySelectorAll('.color-swatch').forEach(swatch => {
+  swatch.addEventListener('click', () => selectColor(swatch.dataset.color));
+});
+selectColor('Red');
 initCountryLookup();

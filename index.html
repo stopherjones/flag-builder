@@ -3,27 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flag Assembler - Visual Comparison & Rotation</title>
+  <title>Flag Builder</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
   <header>
-    <h1>Flag Assembler</h1>
+    <h1>Flag Builder</h1>
     <div class="target-bar">
-      <button id="daily-btn" class="primary" onclick="loadDailyChallenge()">📅 Daily Challenge</button>
-      <label for="country-search"><strong>Free Search:</strong></label>
-      <input 
-        type="text" 
-        id="country-search" 
-        list="country-list" 
-        placeholder="Search country..." 
-        oninput="handleCountrySelect(this.value)" 
-        onfocus="this.select()"
-        disabled
-      >
-      <datalist id="country-list"></datalist>
-      <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">Loading...</span>
+      <div class="mode-options" role="group" aria-label="Game mode">
+        <button id="daily-btn" class="primary" onclick="loadDailyChallenge()">📅 Daily Play</button>
+        <button id="random-country-btn" onclick="loadRandomCountry()" disabled>🔀 Random</button>
+        <button id="free-play-btn" onclick="setFreePlay()">🎲 Free Play</button>
+      </div>
+      <div class="target-options">
+        <label for="country-search"><strong>Country Picker:</strong></label>
+        <input
+          type="text"
+          id="country-search"
+          list="country-list"
+          placeholder="Search country..."
+          oninput="handleCountrySelect(this.value)"
+          onfocus="this.select()"
+          disabled
+        >
+        <datalist id="country-list"></datalist>
+        <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">Loading...</span>
+      </div>
     </div>
   </header>
 
@@ -54,18 +60,6 @@
             <option value="Crescent">Crescent</option>
             <option value="Cross">Cross</option>
           </select>
-          
-          <select id="shape-color">
-            <option value="Black">Black</option>
-            <option value="Blue">Blue</option>
-            <option value="Green">Green</option>
-            <option value="Orange">Orange</option>
-            <option value="Red">Red</option>
-            <option value="White">White</option>
-            <option value="Yellow">Yellow</option>
-          </select>
-
-          <button class="primary" onclick="addElement()">+ Add</button>
         </div>
 
         <div id="star-options" class="sub-option-row" style="display: none;">
@@ -79,6 +73,42 @@
             <option value="12">12 Points</option>
             <option value="24">24 Points</option>
           </select>
+        </div>
+
+        <div id="cross-options" class="sub-option-row" style="display: none;">
+          <label for="cross-style" style="font-size: 0.85rem;"><strong>Cross Style:</strong></label>
+          <select id="cross-style">
+            <option value="regular">Regular cross</option>
+            <option value="saltaire">Saltaire</option>
+            <option value="nordic">Nordic cross</option>
+          </select>
+          <label for="cross-thickness" style="font-size: 0.85rem;"><strong>Thickness:</strong></label>
+          <select id="cross-thickness">
+            <option value="20">Thin</option>
+            <option value="35" selected>Medium</option>
+            <option value="50">Thick</option>
+            <option value="70">Extra thick</option>
+          </select>
+        </div>
+
+        <div class="form-row color-row">
+          <div id="color-picker" class="color-picker" role="group" aria-label="Flag colour">
+            <button type="button" class="color-swatch" data-color="Deep red" title="Deep red" aria-label="Deep red"></button>
+            <button type="button" class="color-swatch" data-color="Red" title="Red" aria-label="Red"></button>
+            <button type="button" class="color-swatch" data-color="Orange" title="Orange" aria-label="Orange"></button>
+            <button type="button" class="color-swatch" data-color="Yellow" title="Yellow" aria-label="Yellow"></button>
+            <button type="button" class="color-swatch" data-color="Deep green" title="Deep green" aria-label="Deep green"></button>
+            <button type="button" class="color-swatch" data-color="Green" title="Green" aria-label="Green"></button>
+            <button type="button" class="color-swatch" data-color="Deep blue" title="Deep blue" aria-label="Deep blue"></button>
+            <button type="button" class="color-swatch" data-color="Blue" title="Blue" aria-label="Blue"></button>
+            <button type="button" class="color-swatch" data-color="Light blue" title="Light blue" aria-label="Light blue"></button>
+            <button type="button" class="color-swatch" data-color="White" title="White" aria-label="White"></button>
+            <button type="button" class="color-swatch" data-color="Black" title="Black" aria-label="Black"></button>
+          </div>
+        </div>
+
+        <div class="form-row add-shape-row">
+          <button class="primary" onclick="addElement()">+ Add</button>
         </div>
       </div>
 
@@ -95,10 +125,10 @@
             </label>
           </div>
           <div class="form-row" style="margin-top: 0.25rem;">
-            <select id="emblem-select" style="flex: 1;">
+            <select id="emblem-select" style="flex: 1;" disabled>
               <option value="">Loading emblems...</option>
             </select>
-            <button class="primary" id="add-emblem-btn" onclick="addSelectedEmblem()">+ Add</button>
+            <button class="primary" id="add-emblem-btn" onclick="addSelectedEmblem()" disabled>+ Add</button>
           </div>
         </div>
 
