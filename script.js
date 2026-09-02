@@ -21,7 +21,6 @@ let activeGuides = [];
 
 const svg = document.getElementById('flag-svg');
 
-// Static country array to avoid API limitations and rate limits
 const STATIC_COUNTRIES = [
   { name: "Afghanistan", code: "af" },
   { name: "Albania", code: "al" },
@@ -183,7 +182,6 @@ const STATIC_COUNTRIES = [
   { name: "Zimbabwe", code: "zw" }
 ];
 
-// Deterministic algorithm for daily country selection based on UTC YYYYMMDD
 function getDailyCountry(countries) {
   const now = new Date();
   const year = now.getUTCFullYear();
@@ -232,8 +230,119 @@ function initCountryLookup() {
   searchInput.placeholder = "Type country name (e.g. France)...";
   searchInput.disabled = false;
 
-  // Load UTC Daily Challenge by default on start
   loadDailyChallenge();
+  loadWikipediaArmorial();
+}
+
+async function loadWikipediaArmorial() {
+  const selectEl = document.getElementById('wiki-coat-select');
+  if (!selectEl) return;
+
+  try {
+    const wikiApiUrl = 'https://en.wikipedia.org/w/api.php?action=parse&page=Armorial_of_sovereign_states&prop=text&format=json&origin=*';
+    const response = await fetch(wikiApiUrl);
+    const data = await response.json();
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.parse.text['*'], 'text/html');
+
+    const items = [];
+    const containers = doc.querySelectorAll('.gallerybox, .wikitable td, .thumb');
+
+    containers.forEach(box => {
+      const img = box.querySelector('img');
+      if (!img) return;
+
+      let src = img.getAttribute('src');
+      if (!src) return;
+
+      if (src.startsWith('//')) src = 'https:' + src;
+
+      // Upscale image resolution for flag stage clarity
+      src = src.replace(/\/\d+px-/, '/300px-');
+
+      let name = box.textContent.trim().split('\n')[0];
+      const altText = img.getAttribute('alt') || '';
+
+      if (altText && altText.length > 2) {
+        name = altText;
+      }
+
+      name = name
+        .replace(/^Coat of arms of /i, '')
+        .replace(/^Emblem of /i, '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
+
+      if (name && name.length > 1 && !items.some(i => i.url === src)) {
+        items.push({ name: name, url: src });
+      }
+    });
+
+    items.sort((a, b) => a.name.localeCompare(b.name));
+
+    selectEl.innerHTML = '<option value="">-- Select State Crest --</option>';
+    items.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.url;
+      opt.textContent = item.name;
+      selectEl.appendChild(opt);
+    });
+
+  } catch (err) {
+    console.error("Error loading Wikipedia armorial:", err);
+    selectEl.innerHTML = '<option value="">Failed to load Wikipedia list</option>';
+  }
+}
+
+async function addSelectedWikipediaCoat() {
+  const selectEl = document.getElementById('wiki-coat-select');
+  const imgUrl = selectEl.value;
+  if (!imgUrl) return;
+
+  const addBtn = document.getElementById('add-wiki-coat-btn');
+  if (addBtn) {
+    addBtn.textContent = 'Loading...';
+    addBtn.disabled = true;
+  }
+
+  try {
+    const response = await fetch(imgUrl);
+    const blob = await response.blob();
+
+    const reader = new FileReader();
+    reader.onloadend = function() {
+      const base64data = reader.result;
+      const newLayer = {
+        id: Date.now(),
+        shape: 'Image',
+        imageUrl: base64data,
+        color: 'Custom',
+        hex: '#ffffff',
+        x: 300,
+        y: 200,
+        scaleX: 0.6,
+        scaleY: 0.6,
+        rotation: 0
+      };
+      layers.push(newLayer);
+      selectedId = newLayer.id;
+      render();
+
+      if (addBtn) {
+        addBtn.textContent = '+ Add';
+        addBtn.disabled = false;
+      }
+    };
+    reader.readAsDataURL(blob);
+  } catch (err) {
+    console.error("Failed to load Wikimedia image:", err);
+    alert("Could not load selected Wikipedia coat of arms image.");
+    if (addBtn) {
+      addBtn.textContent = '+ Add';
+      addBtn.disabled = false;
+    }
+  }
 }
 
 function handleCountrySelect(val) {
@@ -248,22 +357,46 @@ function handleCountrySelect(val) {
   }
 }
 
+function toggleShapeSubOptions() {
+  const shape = document.getElementById('shape-type').value;
+  const starOpts = document.getElementById('star-options');
+  starOpts.style.display = (shape === 'Star') ? 'flex' : 'none';
+}
+
+function generateStarPointsSVG(numPoints, outerR = 100, innerR = 40) {
+  const pts = [];
+  const step = Math.PI / numPoints;
+  for (let i = 0; i < 2 * numPoints; i++) {
+    const r = (i % 2 === 0) ? outerR : innerR;
+    const angle = i * step - Math.PI / 2;
+    const x = Math.round(r * Math.cos(angle) * 100) / 100;
+    const y = Math.round(r * Math.sin(angle) * 100) / 100;
+    pts.push(`${x},${y}`);
+  }
+  return pts.join(' ');
+}
+
 function getShapeBaseDimensions(shape) {
   if (shape === 'Rectangle') return { w: 200, h: 400 };
   if (shape === 'Circle') return { w: 200, h: 200 };
   if (shape === 'Triangle') return { w: 240, h: 240 };
   if (shape === 'Star') return { w: 200, h: 200 };
+  if (shape === 'Crescent') return { w: 200, h: 200 };
   if (shape === 'Cross') return { w: 200, h: 200 };
+  if (shape === 'Sun') return { w: 200, h: 200 };
+  if (shape === 'Shield' || shape === 'Image') return { w: 180, h: 220 };
   return { w: 200, h: 200 };
 }
 
 function addElement() {
   const shape = document.getElementById('shape-type').value;
   const colorName = document.getElementById('shape-color').value;
+  const starPoints = parseInt(document.getElementById('star-points').value, 10) || 5;
 
   const newLayer = {
     id: Date.now(),
     shape: shape,
+    pointsCount: starPoints,
     color: colorName,
     hex: COLOR_HEX_MAP[colorName] || "#ffffff",
     x: 300,
@@ -273,6 +406,42 @@ function addElement() {
     rotation: 0
   };
 
+  layers.push(newLayer);
+  selectedId = newLayer.id;
+  render();
+}
+
+function addSunElement() {
+  const colorName = document.getElementById('shape-color').value;
+  const newLayer = {
+    id: Date.now(),
+    shape: 'Sun',
+    color: colorName,
+    hex: COLOR_HEX_MAP[colorName] || "#fcd116",
+    x: 300,
+    y: 200,
+    scaleX: 0.6,
+    scaleY: 0.6,
+    rotation: 0
+  };
+  layers.push(newLayer);
+  selectedId = newLayer.id;
+  render();
+}
+
+function addCoatOfArmsPreset() {
+  const colorName = document.getElementById('shape-color').value;
+  const newLayer = {
+    id: Date.now(),
+    shape: 'Shield',
+    color: colorName,
+    hex: COLOR_HEX_MAP[colorName] || "#ce1126",
+    x: 300,
+    y: 200,
+    scaleX: 0.6,
+    scaleY: 0.6,
+    rotation: 0
+  };
   layers.push(newLayer);
   selectedId = newLayer.id;
   render();
@@ -352,9 +521,15 @@ function renderLayers() {
       elemGroup.appendChild(tri);
     } else if (layer.shape === 'Star') {
       const star = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      star.setAttribute('points', '0,-100 30,-30 100,-30 40,15 60,90 0,45 -60,90 -40,15 -100,-30 -30,-30');
+      const pts = generateStarPointsSVG(layer.pointsCount || 5, 100, 40);
+      star.setAttribute('points', pts);
       star.setAttribute('fill', layer.hex);
       elemGroup.appendChild(star);
+    } else if (layer.shape === 'Crescent') {
+      const crescent = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      crescent.setAttribute('d', 'M 0,-100 A 100,100 0 1,0 0,100 A 75,75 0 1,1 0,-100 Z');
+      crescent.setAttribute('fill', layer.hex);
+      elemGroup.appendChild(crescent);
     } else if (layer.shape === 'Cross') {
       const crossG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       crossG.setAttribute('fill', layer.hex);
@@ -364,6 +539,37 @@ function renderLayers() {
       h.setAttribute('x', -100); h.setAttribute('y', -25); h.setAttribute('width', 200); h.setAttribute('height', 50);
       crossG.appendChild(v); crossG.appendChild(h);
       elemGroup.appendChild(crossG);
+    } else if (layer.shape === 'Sun') {
+      const sunG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      sunG.setAttribute('fill', layer.hex);
+      
+      const core = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      core.setAttribute('r', 45);
+      sunG.appendChild(core);
+
+      const numRays = 16;
+      for (let i = 0; i < numRays; i++) {
+        const ray = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        ray.setAttribute('points', '-10,-50 0,-100 10,-50');
+        ray.setAttribute('transform', `rotate(${(i * 360) / numRays})`);
+        sunG.appendChild(ray);
+      }
+      elemGroup.appendChild(sunG);
+    } else if (layer.shape === 'Shield') {
+      const shield = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      shield.setAttribute('d', 'M -80,-100 L 80,-100 L 80,10 C 80,70 0,110 0,110 C 0,110 -80,70 -80,10 Z');
+      shield.setAttribute('fill', layer.hex);
+      shield.setAttribute('stroke', '#ffffff');
+      shield.setAttribute('stroke-width', '4');
+      elemGroup.appendChild(shield);
+    } else if (layer.shape === 'Image') {
+      const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+      img.setAttribute('href', layer.imageUrl);
+      img.setAttribute('x', -90);
+      img.setAttribute('y', -110);
+      img.setAttribute('width', 180);
+      img.setAttribute('height', 220);
+      elemGroup.appendChild(img);
     }
 
     g.appendChild(elemGroup);
@@ -479,10 +685,12 @@ function renderLayerList() {
     item.className = `layer-item ${layer.id === selectedId ? 'active' : ''}`;
     item.onclick = () => selectLayer(layer.id);
 
+    const labelName = layer.shape === 'Star' ? `Star (${layer.pointsCount} pt)` : layer.shape;
+
     item.innerHTML = `
       <div style="display:flex; align-items:center;">
         <span class="layer-preview" style="background-color:${layer.hex};"></span>
-        <span style="font-size:0.85rem;">${layer.shape} (${Math.round(layer.rotation)}°)</span>
+        <span style="font-size:0.85rem;">${labelName} (${Math.round(layer.rotation)}°)</span>
       </div>
       <div class="layer-controls">
         <button onclick="moveLayer(${layer.id}, -1, event)" ${idx === 0 ? 'disabled' : ''}>▲</button>
@@ -666,7 +874,7 @@ function evaluateSubmission() {
 
     const userImg = new Image();
     userImg.onload = function() {
-      ctxUser.fillStyle = "#000000";
+      ctxUser.fillStyle = "#808080";
       ctxUser.fillRect(0, 0, w, h);
       ctxUser.drawImage(userImg, 0, 0, w, h);
       URL.revokeObjectURL(blobURL);

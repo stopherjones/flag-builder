@@ -7,6 +7,7 @@
   --text-main: #f0f0f0;
   --text-muted: #aaaaaa;
   --border: #444444;
+  --bg-stage: #808080; /* Neutral grey background */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -79,6 +80,32 @@ header h1 {
   overflow: hidden;
   position: relative;
   touch-action: none;
+  background-color: var(--bg-stage);
+  border: 2px solid #555;
+}
+
+.file-upload-btn {
+  display: inline-block;
+  padding: 0.5rem 0.85rem;
+  background-color: #3b82f6;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  width: 100%;
+}
+
+.file-upload-btn:hover {
+  background-color: #2563eb;
+}
+
+.sub-option-row {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 #flag-svg {

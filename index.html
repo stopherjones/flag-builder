@@ -46,11 +46,12 @@
       <div class="form-group">
         <h2>Add Component Shape</h2>
         <div class="form-row">
-          <select id="shape-type">
+          <select id="shape-type" onchange="toggleShapeSubOptions()">
             <option value="Rectangle">Rectangle</option>
             <option value="Circle">Circle</option>
             <option value="Triangle">Triangle</option>
             <option value="Star">Star</option>
+            <option value="Crescent">Crescent</option>
             <option value="Cross">Cross</option>
           </select>
           
@@ -65,6 +66,39 @@
           </select>
 
           <button class="primary" onclick="addElement()">+ Add</button>
+        </div>
+
+        <div id="star-options" class="sub-option-row" style="display: none;">
+          <label for="star-points" style="font-size: 0.85rem;"><strong>Star Points:</strong></label>
+          <select id="star-points">
+            <option value="4">4 Points</option>
+            <option value="5" selected>5 Points</option>
+            <option value="6">6 Points</option>
+            <option value="7">7 Points</option>
+            <option value="8">8 Points</option>
+            <option value="12">12 Points</option>
+            <option value="24">24 Points</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <h2>Special & Other Elements</h2>
+        <div class="form-row">
+          <button class="secondary" onclick="addSunElement()">☀️ Add Sun</button>
+          <button class="secondary" onclick="addCoatOfArmsPreset()">🛡️ Shield Crest</button>
+        </div>
+
+        <div class="form-row" style="margin-top: 0.75rem;">
+          <label for="wiki-coat-select" style="font-size: 0.85rem; width: 100%;">
+            <strong>Wikipedia State Coat of Arms:</strong>
+          </label>
+        </div>
+        <div class="form-row" style="margin-top: 0.25rem;">
+          <select id="wiki-coat-select" style="flex: 1;">
+            <option value="">Loading Wikipedia gallery...</option>
+          </select>
+          <button class="primary" id="add-wiki-coat-btn" onclick="addSelectedWikipediaCoat()">+ Add</button>
         </div>
       </div>
 
