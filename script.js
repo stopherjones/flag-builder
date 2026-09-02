@@ -402,7 +402,7 @@ function generateStarPointsSVG(numPoints, outerR = 100, innerR = 40) {
 }
 
 function getShapeBaseDimensions(shape) {
-  if (shape === 'Rectangle') return { w: 200, h: 400 };
+  if (shape === 'Rectangle') return { w: 400, h: 200 };
   if (shape === 'Circle') return { w: 200, h: 200 };
   if (shape === 'Triangle') return { w: 240, h: 240 };
   if (shape === 'Star') return { w: 200, h: 200 };
@@ -534,8 +534,8 @@ function renderLayers() {
 
     if (layer.shape === 'Rectangle') {
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', -100); rect.setAttribute('y', -200);
-      rect.setAttribute('width', 200); rect.setAttribute('height', 400);
+      rect.setAttribute('x', -200); rect.setAttribute('y', -100);
+      rect.setAttribute('width', 400); rect.setAttribute('height', 200);
       rect.setAttribute('fill', layer.hex);
       elemGroup.appendChild(rect);
     } else if (layer.shape === 'Circle') {
