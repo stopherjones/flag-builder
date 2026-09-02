@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flag Builder</title>
+  <meta name="description" content="Interactive flag design tool and geography game to create flags and score against official references.">
+  <meta property="og:title" content="Flag Builder">
+  <meta property="og:description" content="Interactive flag design tool and geography game to create flags and score against official references.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,10 +16,11 @@
     <div class="target-bar">
       <div class="mode-options" role="group" aria-label="Game mode">
         <button id="daily-btn" class="primary" onclick="loadDailyChallenge()">📅 Daily Play</button>
+        <button id="dice-draft-btn" onclick="startDiceDraftMode()">🎲 Dice Draft</button>
         <button id="random-country-btn" onclick="loadRandomCountry()" disabled>🔀 Random</button>
-        <button id="free-play-btn" onclick="setFreePlay()">🎲 Free Play</button>
+        <button id="free-play-btn" onclick="setFreePlay()">🎨 Free Play</button>
       </div>
-      <div class="target-options">
+      <div id="standard-target-options" class="target-options">
         <label for="country-search"><strong>Country Picker:</strong></label>
         <input
           type="text"
@@ -30,6 +34,9 @@
         <datalist id="country-list"></datalist>
         <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">Loading...</span>
       </div>
+      <div id="dice-draft-top-banner" class="draft-mode-top-banner" style="display: none;">
+        <span>🎲 <strong>Dice Draft Mode:</strong> Roll pieces one by one, assemble your flag, then choose your country below to score!</span>
+      </div>
     </div>
   </header>
 
@@ -42,6 +49,174 @@
           <g id="handle-group"></g>
         </svg>
       </div>
+      <div id="transform-panel" class="transform-panel">
+        <!-- Empty state when no shape selected -->
+        <div id="transform-empty" class="transform-empty">
+          <span>👆 <em>Tap any shape on the flag to resize, rotate, nudge, or recolour</em></span>
+        </div>
+
+        <!-- Active shape controls when selectedId is active -->
+        <div id="transform-active" class="transform-active" style="display: none;">
+          <!-- Header with Shape badge, layer index, recolor, and delete -->
+          <div class="transform-header">
+            <div class="transform-title-group">
+              <span id="trans-color-dot" class="trans-color-dot"></span>
+              <strong id="trans-shape-name">Rectangle</strong>
+              <span id="trans-layer-badge" class="trans-layer-badge">Layer 1</span>
+            </div>
+            <div class="transform-actions">
+              <button type="button" class="small-btn" onclick="duplicateSelectedLayer()" title="Duplicate shape">⧉ Copy</button>
+              <button type="button" class="small-btn" onclick="centerSelectedShape()" title="Center on flag">🎯 Center</button>
+              <button type="button" class="small-btn danger" onclick="deleteSelectedLayer()" title="Delete shape">✕ Del</button>
+            </div>
+          </div>
+
+          <!-- Tab navigation for Transform Inspector -->
+          <div class="transform-tabs" role="tablist">
+            <button type="button" id="tab-btn-rotate" class="tab-btn active" onclick="switchTransformTab('rotate')">🔄 Rotate</button>
+            <button type="button" id="tab-btn-size" class="tab-btn" onclick="switchTransformTab('size')">📐 Size</button>
+            <button type="button" id="tab-btn-position" class="tab-btn" onclick="switchTransformTab('position')">🕹️ Nudge</button>
+            <button type="button" id="tab-btn-style" class="tab-btn" onclick="switchTransformTab('style')">🎨 Fit/Color</button>
+          </div>
+
+          <!-- TAB 1: ROTATE -->
+          <div id="tab-content-rotate" class="transform-tab-content">
+            <div class="slider-row">
+              <label for="rot-slider">Rotation: <strong id="rot-val-display">0°</strong></label>
+              <input type="range" id="rot-slider" min="0" max="359" step="1" value="0" oninput="onRotateSliderInput(this.value)">
+            </div>
+            <div class="quick-preset-buttons">
+              <button type="button" class="preset-pill" onclick="setRotationPreset(0)">0°</button>
+              <button type="button" class="preset-pill" onclick="setRotationPreset(45)">45°</button>
+              <button type="button" class="preset-pill" onclick="setRotationPreset(90)">90°</button>
+              <button type="button" class="preset-pill" onclick="setRotationPreset(180)">180°</button>
+              <button type="button" class="preset-pill" onclick="setRotationPreset(270)">270°</button>
+              <button type="button" class="preset-pill" onclick="adjustRotation(-15)">-15°</button>
+              <button type="button" class="preset-pill" onclick="adjustRotation(15)">+15°</button>
+              <button type="button" class="preset-pill" onclick="adjustRotation(-1)">-1°</button>
+              <button type="button" class="preset-pill" onclick="adjustRotation(1)">+1°</button>
+              <button type="button" class="preset-pill" onclick="flipHorizontal()">↔ Flip H</button>
+              <button type="button" class="preset-pill" onclick="flipVertical()">↕ Flip V</button>
+            </div>
+          </div>
+
+          <!-- TAB 2: SIZE & STRETCH -->
+          <div id="tab-content-size" class="transform-tab-content" style="display: none;">
+            <div class="slider-row">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label for="scale-uniform-slider">Scale: <strong id="scale-val-display">1.00x</strong></label>
+                <div class="stepper-buttons">
+                  <button type="button" class="step-btn" onclick="adjustUniformScale(-0.05)">-</button>
+                  <button type="button" class="step-btn" onclick="adjustUniformScale(0.05)">+</button>
+                </div>
+              </div>
+              <input type="range" id="scale-uniform-slider" min="0.05" max="4.0" step="0.05" value="1.0" oninput="onUniformScaleSliderInput(this.value)">
+            </div>
+
+            <div class="stretch-controls-grid">
+              <div class="slider-col">
+                <label for="scale-x-slider">Width (X): <strong id="scale-x-display">1.00x</strong></label>
+                <input type="range" id="scale-x-slider" min="0.05" max="4.0" step="0.05" value="1.0" oninput="onScaleXSliderInput(this.value)">
+              </div>
+              <div class="slider-col">
+                <label for="scale-y-slider">Height (Y): <strong id="scale-y-display">1.00x</strong></label>
+                <input type="range" id="scale-y-slider" min="0.05" max="4.0" step="0.05" value="1.0" oninput="onScaleYSliderInput(this.value)">
+              </div>
+            </div>
+
+            <!-- Specific shape adjustments if applicable -->
+            <div id="cross-custom-adjust" class="sub-adjust-row" style="display: none;">
+              <label for="selected-cross-thickness">Cross Thick: <strong id="cross-thick-val">35px</strong></label>
+              <input type="range" id="selected-cross-thickness" min="10" max="100" step="5" value="35" oninput="onSelectedCrossThicknessInput(this.value)">
+            </div>
+
+            <div id="star-custom-adjust" class="sub-adjust-row" style="display: none;">
+              <label for="selected-star-points">Star Points:</label>
+              <select id="selected-star-points" onchange="onSelectedStarPointsChange(this.value)">
+                <option value="4">4 Points</option>
+                <option value="5">5 Points</option>
+                <option value="6">6 Points</option>
+                <option value="7">7 Points</option>
+                <option value="8">8 Points</option>
+                <option value="12">12 Points</option>
+                <option value="24">24 Points</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- TAB 3: POSITION & NUDGE -->
+          <div id="tab-content-position" class="transform-tab-content" style="display: none;">
+            <div class="nudge-layout">
+              <div class="dpad-container">
+                <div class="dpad-row">
+                  <button type="button" class="dpad-btn" onclick="nudgeShape(0, -1)" title="Nudge Up">▲</button>
+                </div>
+                <div class="dpad-row">
+                  <button type="button" class="dpad-btn" onclick="nudgeShape(-1, 0)" title="Nudge Left">◀</button>
+                  <button type="button" class="dpad-center" onclick="centerSelectedShape()" title="Center Shape">🎯</button>
+                  <button type="button" class="dpad-btn" onclick="nudgeShape(1, 0)" title="Nudge Right">▶</button>
+                </div>
+                <div class="dpad-row">
+                  <button type="button" class="dpad-btn" onclick="nudgeShape(0, 1)" title="Nudge Down">▼</button>
+                </div>
+              </div>
+              <div class="nudge-options">
+                <span style="font-size:0.75rem; color:var(--text-muted);">Step:</span>
+                <div class="step-toggle-group">
+                  <button type="button" id="nudge-step-1" class="step-toggle-btn active" onclick="setNudgeStep(1)">1px</button>
+                  <button type="button" id="nudge-step-5" class="step-toggle-btn" onclick="setNudgeStep(5)">5px</button>
+                  <button type="button" id="nudge-step-20" class="step-toggle-btn" onclick="setNudgeStep(20)">20px</button>
+                </div>
+                <div class="pos-readout">
+                  <span>X: <strong id="pos-x-val">300</strong></span>
+                  <span>Y: <strong id="pos-y-val">200</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: STYLE & QUICK FIT -->
+          <div id="tab-content-style" class="transform-tab-content" style="display: none;">
+            <div class="quick-fit-grid">
+              <button type="button" class="preset-pill" onclick="fitToFlagWidth()">↔ Fit Width</button>
+              <button type="button" class="preset-pill" onclick="fitToFlagHeight()">↕ Fit Height</button>
+              <button type="button" class="preset-pill" onclick="fillEntireFlag()">⤢ Full Flag</button>
+              <button type="button" class="preset-pill" onclick="alignShape('left')">⬅ Left</button>
+              <button type="button" class="preset-pill" onclick="alignShape('right')">➡️ Right</button>
+              <button type="button" class="preset-pill" onclick="alignShape('top')">⬆ Top</button>
+              <button type="button" class="preset-pill" onclick="alignShape('bottom')">⬇ Bottom</button>
+            </div>
+            <div class="selected-color-palette" style="margin-top: 0.4rem;">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Recolour Shape:</span>
+              <div id="recolor-swatches" class="recolor-swatches"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="touch-hint-bar">
+        <span>💡 Drag shapes directly on canvas, or use the precision sliders & nudge pad above.</span>
+      </div>
+
+      <!-- Dice Draft Dedicated Country Test Selector -->
+      <div id="dice-draft-country-test-section" class="draft-test-section" style="display: none;">
+        <div class="draft-test-header">
+          <label for="draft-country-select"><strong>🎯 Select Country to Test Against:</strong></label>
+          <span id="draft-target-badge" class="draft-target-badge">Pick country to see points & complexity</span>
+        </div>
+        <div class="draft-country-row">
+          <input
+            type="text"
+            id="draft-country-select"
+            list="country-list"
+            placeholder="Search country (e.g. Norway, France, Japan...)"
+            oninput="handleDraftCountrySelect(this.value)"
+            onfocus="this.select()"
+          >
+          <button type="button" class="small-btn" onclick="loadRandomDraftCountry()" title="Pick random country to test">🔀 Random Test</button>
+        </div>
+      </div>
+
       <div class="form-row">
         <button class="primary" id="submit-btn" onclick="evaluateSubmission()">Submit & Score</button>
         <button onclick="clearCanvas()">Clear Canvas</button>
@@ -49,68 +224,70 @@
     </div>
 
     <div class="panel">
-      <div class="form-group">
-        <h2>Add Component Shape</h2>
-        <div class="form-row">
-          <select id="shape-type" onchange="toggleShapeSubOptions()">
-            <option value="Rectangle">Rectangle</option>
-            <option value="Circle">Circle</option>
-            <option value="Triangle">Triangle</option>
-            <option value="Star">Star</option>
-            <option value="Crescent">Crescent</option>
-            <option value="Cross">Cross</option>
-          </select>
-        </div>
+      <!-- Standard Shape Builder (Free Play & Daily) -->
+      <div id="standard-builder-panel">
+        <div class="form-group">
+          <h2>Add Component Shape</h2>
+          <div class="form-row">
+            <select id="shape-type" onchange="toggleShapeSubOptions()">
+              <option value="Rectangle">Rectangle</option>
+              <option value="Circle">Circle</option>
+              <option value="Triangle">Triangle</option>
+              <option value="Star">Star</option>
+              <option value="Crescent">Crescent</option>
+              <option value="Cross">Cross</option>
+            </select>
+          </div>
 
-        <div id="star-options" class="sub-option-row" style="display: none;">
-          <label for="star-points" style="font-size: 0.85rem;"><strong>Star Points:</strong></label>
-          <select id="star-points">
-            <option value="4">4 Points</option>
-            <option value="5" selected>5 Points</option>
-            <option value="6">6 Points</option>
-            <option value="7">7 Points</option>
-            <option value="8">8 Points</option>
-            <option value="12">12 Points</option>
-            <option value="24">24 Points</option>
-          </select>
-        </div>
+          <div id="star-options" class="sub-option-row" style="display: none;">
+            <label for="star-points" style="font-size: 0.85rem;"><strong>Star Points:</strong></label>
+            <select id="star-points">
+              <option value="4">4 Points</option>
+              <option value="5" selected>5 Points</option>
+              <option value="6">6 Points</option>
+              <option value="7">7 Points</option>
+              <option value="8">8 Points</option>
+              <option value="12">12 Points</option>
+              <option value="24">24 Points</option>
+            </select>
+          </div>
 
-        <div id="cross-options" class="sub-option-row" style="display: none;">
-          <label for="cross-style" style="font-size: 0.85rem;"><strong>Cross Style:</strong></label>
-          <select id="cross-style">
-            <option value="regular">Regular cross</option>
-            <option value="saltaire">Saltaire</option>
-            <option value="nordic">Nordic cross</option>
-          </select>
-          <label for="cross-thickness" style="font-size: 0.85rem;"><strong>Thickness:</strong></label>
-          <select id="cross-thickness">
-            <option value="20">Thin</option>
-            <option value="35" selected>Medium</option>
-            <option value="50">Thick</option>
-            <option value="70">Extra thick</option>
-          </select>
-        </div>
+          <div id="cross-options" class="sub-option-row" style="display: none;">
+            <label for="cross-style" style="font-size: 0.85rem;"><strong>Cross Style:</strong></label>
+            <select id="cross-style">
+              <option value="regular">Regular cross</option>
+              <option value="saltaire">Saltaire</option>
+              <option value="nordic">Nordic cross</option>
+            </select>
+            <label for="cross-thickness" style="font-size: 0.85rem;"><strong>Thickness:</strong></label>
+            <select id="cross-thickness">
+              <option value="20">Thin</option>
+              <option value="35" selected>Medium</option>
+              <option value="50">Thick</option>
+              <option value="70">Extra thick</option>
+            </select>
+          </div>
 
-        <div class="form-row color-row">
-          <div id="color-picker" class="color-picker" role="group" aria-label="Flag colour">
-            <button type="button" class="color-swatch" data-color="Deep red" title="Deep red" aria-label="Deep red"></button>
-            <button type="button" class="color-swatch" data-color="Red" title="Red" aria-label="Red"></button>
-            <button type="button" class="color-swatch" data-color="Orange" title="Orange" aria-label="Orange"></button>
-            <button type="button" class="color-swatch" data-color="Yellow" title="Yellow" aria-label="Yellow"></button>
-            <button type="button" class="color-swatch" data-color="Deep green" title="Deep green" aria-label="Deep green"></button>
-            <button type="button" class="color-swatch" data-color="Green" title="Green" aria-label="Green"></button>
-            <button type="button" class="color-swatch" data-color="Deep blue" title="Deep blue" aria-label="Deep blue"></button>
-            <button type="button" class="color-swatch" data-color="Blue" title="Blue" aria-label="Blue"></button>
-            <button type="button" class="color-swatch" data-color="Light blue" title="Light blue" aria-label="Light blue"></button>
-            <button type="button" class="color-swatch" data-color="White" title="White" aria-label="White"></button>
-            <button type="button" class="color-swatch" data-color="Black" title="Black" aria-label="Black"></button>
+          <div class="form-row color-row">
+            <div id="color-picker" class="color-picker" role="group" aria-label="Flag colour">
+              <button type="button" class="color-swatch" data-color="Deep red" title="Deep red" aria-label="Deep red"></button>
+              <button type="button" class="color-swatch" data-color="Red" title="Red" aria-label="Red"></button>
+              <button type="button" class="color-swatch" data-color="Orange" title="Orange" aria-label="Orange"></button>
+              <button type="button" class="color-swatch" data-color="Yellow" title="Yellow" aria-label="Yellow"></button>
+              <button type="button" class="color-swatch" data-color="Deep green" title="Deep green" aria-label="Deep green"></button>
+              <button type="button" class="color-swatch" data-color="Green" title="Green" aria-label="Green"></button>
+              <button type="button" class="color-swatch" data-color="Deep blue" title="Deep blue" aria-label="Deep blue"></button>
+              <button type="button" class="color-swatch" data-color="Blue" title="Blue" aria-label="Blue"></button>
+              <button type="button" class="color-swatch" data-color="Light blue" title="Light blue" aria-label="Light blue"></button>
+              <button type="button" class="color-swatch" data-color="White" title="White" aria-label="White"></button>
+              <button type="button" class="color-swatch" data-color="Black" title="Black" aria-label="Black"></button>
+            </div>
+          </div>
+
+          <div class="form-row add-shape-row">
+            <button class="primary" onclick="addElement()">+ Add</button>
           </div>
         </div>
-
-        <div class="form-row add-shape-row">
-          <button class="primary" onclick="addElement()">+ Add</button>
-        </div>
-      </div>
 
         <div class="form-group">
           <h2>Special & Other Elements</h2>
@@ -131,6 +308,51 @@
             <button class="primary" id="add-emblem-btn" onclick="addSelectedEmblem()" disabled>+ Add</button>
           </div>
         </div>
+      </div>
+
+      <!-- Dice Draft Mode Panel -->
+      <div id="dice-draft-panel" style="display: none;">
+        <div class="form-group">
+          <h2>Dice Draft (Roll One by One)</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted); line-height: 1.35;">
+            Roll <strong>2D6</strong> for shape + <strong>1D12</strong> for colour. Roll elements one by one, assemble your flag, then choose a country to test against. Unused pieces lose 5 pts!
+          </p>
+
+          <div class="dice-arena">
+            <div class="dice-group">
+              <span class="dice-label">Shape (2D6)</span>
+              <div class="dice-pair">
+                <div id="die-1" class="d6-die">🎲</div>
+                <div id="die-2" class="d6-die">🎲</div>
+              </div>
+              <span id="shape-roll-result" class="roll-result-text">Ready to roll</span>
+            </div>
+
+            <div class="dice-group">
+              <span class="dice-label">Colour (1D12)</span>
+              <div id="die-d12" class="d12-die">🎲</div>
+              <span id="color-roll-result" class="roll-result-text">Ready to roll</span>
+            </div>
+          </div>
+
+          <div id="latest-roll-banner" class="latest-roll-banner" style="display: none;">
+            <span id="latest-roll-text">Rolled: Rectangle (Blue)</span>
+          </div>
+
+          <div class="form-row" style="margin-top: 0.5rem; justify-content: space-between; flex-wrap: wrap; gap: 0.4rem;">
+            <button id="roll-element-btn" class="primary" style="flex: 1 1 150px;" onclick="rollNextElement()">🎲 Roll Element</button>
+            <button class="secondary" style="flex: 1 1 110px;" onclick="resetDiceDraftGame()">🔄 Reset Draft</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 0.5rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Drafted Elements (<span id="draft-count">0</span>)</h2>
+            <span id="unused-penalty-note" style="font-size:0.75rem; color:#f87171;">Unused: -5 pts each</span>
+          </div>
+          <div id="drafted-elements-list" class="drafted-elements-list"></div>
+        </div>
+      </div>
 
       <div class="form-group">
         <h2>Active Layer Stack</h2>

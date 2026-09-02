@@ -1,0 +1,8 @@
+{
+  "name": "Flag Builder",
+  "description": "Interactive flag design tool and geography game to create flags and score against official references.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
