@@ -2298,14 +2298,13 @@ function renderLayers() {
       nestedSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
       if (layer.svgInnerContent) {
-        try {
-          nestedSvg.innerHTML = layer.svgInnerContent;
-        } catch (e) {
-          const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${layer.svgInnerContent}</svg>`, 'image/svg+xml');
-          Array.from(doc.documentElement.childNodes).forEach(n => {
-            nestedSvg.appendChild(document.importNode(n, true));
-          });
-        }
+        const doc = new DOMParser().parseFromString(
+          `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${layer.svgInnerContent}</svg>`,
+          'image/svg+xml'
+        );
+        Array.from(doc.documentElement.childNodes).forEach(n => {
+          nestedSvg.appendChild(document.importNode(n, true));
+        });
       } else if (layer.chargeId && typeof loadChargeSvg === 'function') {
         loadChargeSvg(layer.chargeId).then(rawSvg => {
           if (rawSvg) {
