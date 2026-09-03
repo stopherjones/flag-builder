@@ -480,8 +480,14 @@ function setGameMode(mode) {
     if (randomButton) randomButton.disabled = true;
   }
 
+  const dupBtn = document.getElementById('trans-duplicate-btn');
+  if (dupBtn) {
+    dupBtn.style.display = (mode === 'dice-draft') ? 'none' : 'inline-block';
+  }
+
   updateColorPickerLockState();
   updateTargetPointsDisplay();
+  renderLayerList();
 }
 
 function loadDailyChallenge() {
@@ -618,7 +624,7 @@ function createDraftItemFromRoll(rollShape, rollColor) {
     starPoints: 5,
     crossStyle: 'regular',
     crossThickness: 35,
-    chargeId: 'sol_de_mayo',
+    chargeId: 'ar',
     layerId: null
   };
 }
@@ -787,7 +793,7 @@ function rollNextElement() {
         starPoints: 5,
         crossStyle: 'regular',
         crossThickness: 35,
-        chargeId: 'sol_de_mayo',
+        chargeId: 'ar',
         layerId: null
       };
       draftedItems.push(startItem);
@@ -877,16 +883,18 @@ function placeDraftItem(draftId) {
   const resolvedShape = item.shapeType === 'Free Choice' ? item.selectedShape : item.shapeType;
   const resolvedColor = item.colorName === 'Free Choice' ? item.selectedColor : item.colorName;
   const hex = item.hex || hslToHex(item.hue, item.saturation, item.lightness);
-  const chargeData = resolvedShape === 'Charge' ? getChargeById(item.chargeId || 'sol_de_mayo') : null;
+  const chargeData = resolvedShape === 'Charge' ? getChargeById(item.chargeId || 'es') : null;
 
   const newLayer = {
     id: Date.now(),
     draftItemId: item.id,
     shape: resolvedShape,
-    chargeId: chargeData ? chargeData.id : null,
+    chargeId: chargeData ? chargeData.code : null,
     chargeName: chargeData ? chargeData.name : null,
-    baseWidth: chargeData ? chargeData.defaultWidth : 150,
-    baseHeight: chargeData ? chargeData.defaultHeight : 150,
+    viewBox: chargeData ? chargeData.viewBox : '0 0 100 100',
+    svgInnerContent: '',
+    baseWidth: chargeData ? chargeData.defaultWidth : 160,
+    baseHeight: chargeData ? chargeData.defaultHeight : 160,
     crossStyle: item.crossStyle,
     crossThickness: item.crossThickness,
     pointsCount: item.starPoints,
@@ -902,6 +910,17 @@ function placeDraftItem(draftId) {
     scaleY: resolvedShape === 'Rectangle' ? 1.0 : 0.6,
     rotation: 0
   };
+
+  if (chargeData && typeof loadChargeSvg === 'function') {
+    loadChargeSvg(chargeData.code).then(rawSvg => {
+      if (rawSvg) {
+        const prep = prepareSvgForLayer(rawSvg, newLayer.id);
+        newLayer.viewBox = prep.viewBox;
+        newLayer.svgInnerContent = prep.inner;
+        renderLayers();
+      }
+    });
+  }
 
   layers.push(newLayer);
   item.layerId = newLayer.id;
@@ -980,18 +999,42 @@ function updateDraftOption(draftId, key, value) {
       if (key === 'selectedShape') {
         layer.shape = value;
         if (value === 'Charge') {
-          const ch = getChargeById(item.chargeId || 'sol_de_mayo');
-          layer.chargeId = ch.id;
+          const ch = getChargeById(item.chargeId || 'es');
+          layer.chargeId = ch.code;
           layer.chargeName = ch.name;
           layer.baseWidth = ch.defaultWidth;
           layer.baseHeight = ch.defaultHeight;
+          layer.viewBox = ch.viewBox;
+          layer.svgInnerContent = '';
+          if (typeof loadChargeSvg === 'function') {
+            loadChargeSvg(ch.code).then(rawSvg => {
+              if (rawSvg) {
+                const prep = prepareSvgForLayer(rawSvg, layer.id);
+                layer.viewBox = prep.viewBox;
+                layer.svgInnerContent = prep.inner;
+                renderLayers();
+              }
+            });
+          }
         }
       } else if (key === 'chargeId') {
         const ch = getChargeById(value);
-        layer.chargeId = ch.id;
+        layer.chargeId = ch.code;
         layer.chargeName = ch.name;
         layer.baseWidth = ch.defaultWidth;
         layer.baseHeight = ch.defaultHeight;
+        layer.viewBox = ch.viewBox;
+        layer.svgInnerContent = '';
+        if (typeof loadChargeSvg === 'function') {
+          loadChargeSvg(ch.code).then(rawSvg => {
+            if (rawSvg) {
+              const prep = prepareSvgForLayer(rawSvg, layer.id);
+              layer.viewBox = prep.viewBox;
+              layer.svgInnerContent = prep.inner;
+              renderLayers();
+            }
+          });
+        }
       } else if (key === 'selectedColor') {
         layer.color = value;
         layer.hue = item.hue;
@@ -1087,8 +1130,8 @@ function renderDraftedTray() {
         <div class="draft-controls-row">
           <label style="font-size:0.75rem;">Charge:</label>
           <select onchange="updateDraftOption(${item.id}, 'chargeId', this.value)">
-            ${(typeof FLAG_CHARGES !== 'undefined' ? FLAG_CHARGES : []).map(ch => `
-              <option value="${ch.id}" ${item.chargeId === ch.id ? 'selected' : ''}>${ch.name} (${ch.country.split('/')[0].trim()})</option>
+            ${(typeof COUNTRY_CHARGES !== 'undefined' ? COUNTRY_CHARGES : (typeof FLAG_CHARGES !== 'undefined' ? FLAG_CHARGES : [])).map(ch => `
+              <option value="${ch.code}" ${item.chargeId === ch.code ? 'selected' : ''}>${ch.name}</option>
             `).join('')}
           </select>
         </div>
@@ -1237,7 +1280,7 @@ function discardDraftItem(draftId) {
 }
 
 function setupCustomCombobox(config) {
-  const { inputId, toggleBtnId, dropdownId, onSelect } = config;
+  const { inputId, toggleBtnId, dropdownId, onSelect, getItems } = config;
   const inputEl = document.getElementById(inputId);
   const toggleBtn = document.getElementById(toggleBtnId);
   const dropdownEl = document.getElementById(dropdownId);
@@ -1245,6 +1288,7 @@ function setupCustomCombobox(config) {
 
   let highlightedIndex = -1;
   let currentFilteredList = [];
+  const getSourceList = typeof getItems === 'function' ? getItems : () => countryList;
 
   function renderDropdown(items, query) {
     currentFilteredList = items;
@@ -1283,7 +1327,7 @@ function setupCustomCombobox(config) {
         e.stopPropagation();
         inputEl.value = country.name;
         closeDropdown();
-        onSelect(country.name);
+        if (typeof onSelect === 'function') onSelect(country.name, country);
       };
 
       itemEl.addEventListener('pointerdown', selectAction);
@@ -1295,9 +1339,10 @@ function setupCustomCombobox(config) {
   }
 
   function filterAndShow(query) {
+    const sourceList = getSourceList();
     const q = (query || '').trim().toLowerCase();
     if (!q) {
-      renderDropdown(countryList, '');
+      renderDropdown(sourceList, '');
       return;
     }
 
@@ -1307,7 +1352,7 @@ function setupCustomCombobox(config) {
     // Also support 'st.' or 'st ' prefix matching for 'saint'
     const normQ = q.replace(/^st\.?\s+/i, 'saint ');
 
-    countryList.forEach(c => {
+    sourceList.forEach(c => {
       const lower = c.name.toLowerCase();
       const normName = lower.replace(/^saint\s+/i, 'st ');
       if (lower.startsWith(q) || lower.startsWith(normQ)) {
@@ -1346,7 +1391,7 @@ function setupCustomCombobox(config) {
 
   inputEl.addEventListener('input', () => {
     filterAndShow(inputEl.value);
-    onSelect(inputEl.value);
+    if (typeof onSelect === 'function') onSelect(inputEl.value, null);
   });
 
   inputEl.addEventListener('focus', () => {
@@ -1379,7 +1424,7 @@ function setupCustomCombobox(config) {
         const sel = currentFilteredList[highlightedIndex];
         inputEl.value = sel.name;
         closeDropdown();
-        onSelect(sel.name);
+        if (typeof onSelect === 'function') onSelect(sel.name, sel);
       }
     } else if (e.key === 'Escape') {
       closeDropdown();
@@ -1773,89 +1818,99 @@ function addElement() {
 }
 
 // -------------------------------------------------------------
-// Flag Charges & Coats of Arms Handlers
+// Country Charges & Unique Flag Elements Handlers
 // -------------------------------------------------------------
 function initChargeSelector() {
-  filterChargesByCategory('ALL');
-}
+  const input = document.getElementById('charge-country-search');
+  if (!input) return;
 
-function filterChargesByCategory(category) {
-  const select = document.getElementById('emblem-select');
-  if (!select || typeof FLAG_CHARGES === 'undefined') return;
+  const defaultCountry = (typeof COUNTRY_CHARGES !== 'undefined' && COUNTRY_CHARGES.find(c => c.name === 'Spain')) || 
+                         (typeof COUNTRY_CHARGES !== 'undefined' ? COUNTRY_CHARGES[0] : null);
+  if (defaultCountry && !input.value) {
+    input.value = defaultCountry.name;
+  }
 
-  const filtered = category === 'ALL' 
-    ? FLAG_CHARGES 
-    : FLAG_CHARGES.filter(c => c.category === category);
+  setupCustomCombobox({
+    inputId: 'charge-country-search',
+    toggleBtnId: 'charge-country-toggle',
+    dropdownId: 'charge-country-dropdown',
+    getItems: () => (typeof COUNTRY_CHARGES !== 'undefined' ? COUNTRY_CHARGES : []),
+    onSelect: (name, item) => {
+      if (item && item.code && typeof loadChargeSvg === 'function') {
+        loadChargeSvg(item.code);
+      }
+    }
+  });
 
-  select.innerHTML = filtered.map(c => `
-    <option value="${c.id}">${c.name} (${c.country})</option>
-  `).join('');
-
-  if (filtered.length > 0) {
-    onChargeSelectChange(filtered[0].id);
-  } else {
-    updateChargePreview(null);
+  if (typeof prefetchCountrySvgs === 'function') {
+    prefetchCountrySvgs();
   }
 }
 
-function onChargeSelectChange(chargeId) {
-  updateChargePreview(chargeId);
+function updateChargePreview() {
+  // Previews removed per design specification
 }
 
-function updateChargePreview(chargeId) {
-  const previewBox = document.getElementById('charge-live-preview');
-  if (!previewBox) return;
-
-  if (!chargeId) {
-    const select = document.getElementById('emblem-select');
-    chargeId = select && select.value ? select.value : ((typeof FLAG_CHARGES !== 'undefined' && FLAG_CHARGES[0]) ? FLAG_CHARGES[0].id : null);
+async function addSelectedChargeFromPicker() {
+  const input = document.getElementById('charge-country-search');
+  const val = input ? input.value.trim() : '';
+  let charge = null;
+  if (val && typeof getChargeById === 'function') {
+    charge = getChargeById(val);
   }
-
-  const charge = typeof getChargeById === 'function' ? getChargeById(chargeId) : null;
-  if (!charge) {
-    previewBox.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">None</span>';
-    return;
+  if (!charge && typeof COUNTRY_CHARGES !== 'undefined' && COUNTRY_CHARGES.length > 0) {
+    charge = COUNTRY_CHARGES.find(c => c.name === 'Spain') || COUNTRY_CHARGES[0];
+    if (input) input.value = charge.name;
   }
-
-  const activeColor = getSelectedColor();
-  const hex = currentPickerColor.hex || COLOR_HEX_MAP[activeColor] || charge.defaultColor;
-
-  previewBox.innerHTML = `
-    <svg viewBox="${charge.viewBox}" style="color: ${hex}; fill: ${hex};">
-      ${charge.svgContent}
-    </svg>
-  `;
-}
-
-function addSelectedEmblem() {
-  const select = document.getElementById('emblem-select');
-  if (!select || !select.value) return;
-  addChargeById(select.value);
-}
-
-function addChargeById(chargeId) {
-  const charge = typeof getChargeById === 'function' ? getChargeById(chargeId) : null;
   if (!charge) return;
 
-  const colorName = getSelectedColor();
-  const hex = currentPickerColor.hex || COLOR_HEX_MAP[colorName] || charge.defaultColor;
+  const addBtn = document.getElementById('add-charge-btn');
+  if (addBtn) {
+    addBtn.textContent = 'Adding...';
+    addBtn.disabled = true;
+  }
+
+  try {
+    await addChargeByCountry(charge.code);
+  } finally {
+    if (addBtn) {
+      addBtn.textContent = '+ Add Unique Element to Flag';
+      addBtn.disabled = false;
+    }
+  }
+}
+
+async function addChargeByCountry(countryCode) {
+  const charge = typeof getChargeById === 'function' ? getChargeById(countryCode) : null;
+  if (!charge) return;
+
+  let rawSvg = '';
+  if (typeof loadChargeSvg === 'function') {
+    rawSvg = await loadChargeSvg(charge.code);
+  }
+
+  const layerId = Date.now();
+  let prepared = { viewBox: charge.viewBox || '0 0 100 100', inner: '' };
+  if (typeof prepareSvgForLayer === 'function' && rawSvg) {
+    prepared = prepareSvgForLayer(rawSvg, layerId);
+  }
 
   const newLayer = {
-    id: Date.now(),
+    id: layerId,
     shape: 'Charge',
-    chargeId: charge.id,
+    chargeId: charge.code,
     chargeName: charge.name,
-    baseWidth: charge.defaultWidth || 150,
-    baseHeight: charge.defaultHeight || 150,
-    color: colorName,
-    hue: currentPickerColor.h,
-    saturation: currentPickerColor.s,
-    lightness: currentPickerColor.l,
-    hex: hex,
+    viewBox: prepared.viewBox,
+    svgInnerContent: prepared.inner,
+    baseWidth: charge.defaultWidth || 160,
+    baseHeight: charge.defaultHeight || 160,
+    color: 'Gold',
+    hex: '#d99b26',
     x: 300,
     y: 200,
-    scaleX: 0.7,
-    scaleY: 0.7,
+    scaleX: 0.8,
+    scaleY: 0.8,
+    scale: 0.8,
     rotation: 0
   };
 
@@ -1864,12 +1919,20 @@ function addChargeById(chargeId) {
   render();
 }
 
+function addChargeById(chargeId) {
+  addChargeByCountry(chargeId);
+}
+
+function addSelectedEmblem() {
+  addSelectedChargeFromPicker();
+}
+
 function addSunElement() {
-  addChargeById('sol_de_mayo');
+  addChargeByCountry('ar');
 }
 
 function addCoatOfArmsPreset() {
-  addChargeById('spanish_shield');
+  addChargeByCountry('es');
 }
 
 function selectLayer(id) {
@@ -1879,11 +1942,56 @@ function selectLayer(id) {
 
 function duplicateLayer(id, e) {
   if (e) e.stopPropagation();
-  // Copy / duplicate feature removed per design specification
+  if (currentGameMode === 'dice-draft') {
+    return;
+  }
+  const sourceLayer = layers.find(l => l.id === id);
+  if (!sourceLayer) return;
+
+  const newId = Date.now() + Math.floor(Math.random() * 1000);
+  const newLayer = JSON.parse(JSON.stringify(sourceLayer));
+  newLayer.id = newId;
+  delete newLayer.draftItemId;
+
+  // Offset position slightly so the duplicate is immediately visible and distinguishable
+  newLayer.x = Math.round(Math.min(580, Math.max(20, (sourceLayer.x || 300) + 20)));
+  newLayer.y = Math.round(Math.min(380, Math.max(20, (sourceLayer.y || 200) + 20)));
+
+  // Re-prefix Charge SVG IDs to avoid id collisions with source layer
+  if (newLayer.shape === 'Charge') {
+    if (newLayer.svgInnerContent) {
+      const oldPrefix = 'ch_' + sourceLayer.id + '_';
+      const newPrefix = 'ch_' + newId + '_';
+      newLayer.svgInnerContent = newLayer.svgInnerContent.split(oldPrefix).join(newPrefix);
+    } else if (newLayer.chargeId && typeof loadChargeSvg === 'function') {
+      loadChargeSvg(newLayer.chargeId).then(rawSvg => {
+        if (rawSvg) {
+          const prep = prepareSvgForLayer(rawSvg, newLayer.id);
+          newLayer.viewBox = prep.viewBox;
+          newLayer.svgInnerContent = prep.inner;
+          renderLayers();
+        }
+      });
+    }
+  }
+
+  // Insert immediately above the duplicated layer
+  const idx = layers.findIndex(l => l.id === id);
+  if (idx !== -1) {
+    layers.splice(idx + 1, 0, newLayer);
+  } else {
+    layers.push(newLayer);
+  }
+
+  selectedId = newLayer.id;
+  render();
 }
 
 function duplicateSelectedLayer() {
-  // Copy / duplicate feature removed per design specification
+  if (currentGameMode === 'dice-draft') return;
+  if (selectedId !== null) {
+    duplicateLayer(selectedId);
+  }
 }
 
 function deleteLayer(id, e) {
@@ -2174,19 +2282,42 @@ function renderLayers() {
       elemGroup.appendChild(shield);
     } else if (layer.shape === 'Charge') {
       const chargeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      chargeG.setAttribute('color', layer.hex);
-      chargeG.setAttribute('fill', layer.hex);
+      chargeG.setAttribute('data-charge-id', layer.chargeId || '');
 
       const charge = typeof getChargeById === 'function' ? getChargeById(layer.chargeId) : null;
-      const w = layer.baseWidth || (charge && charge.defaultWidth) || 150;
-      const h = layer.baseHeight || (charge && charge.defaultHeight) || 150;
+      const w = layer.baseWidth || (charge && charge.defaultWidth) || 160;
+      const h = layer.baseHeight || (charge && charge.defaultHeight) || 160;
+      const vb = layer.viewBox || (charge && charge.viewBox) || '0 0 100 100';
 
-      if (charge) {
-        const innerG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        innerG.setAttribute('transform', `translate(${-w / 2}, ${-h / 2}) scale(${w / 100}, ${h / 100})`);
-        innerG.innerHTML = charge.svgContent;
-        chargeG.appendChild(innerG);
+      const nestedSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      nestedSvg.setAttribute('x', -w / 2);
+      nestedSvg.setAttribute('y', -h / 2);
+      nestedSvg.setAttribute('width', w);
+      nestedSvg.setAttribute('height', h);
+      nestedSvg.setAttribute('viewBox', vb);
+      nestedSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+      if (layer.svgInnerContent) {
+        try {
+          nestedSvg.innerHTML = layer.svgInnerContent;
+        } catch (e) {
+          const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${layer.svgInnerContent}</svg>`, 'image/svg+xml');
+          Array.from(doc.documentElement.childNodes).forEach(n => {
+            nestedSvg.appendChild(document.importNode(n, true));
+          });
+        }
+      } else if (layer.chargeId && typeof loadChargeSvg === 'function') {
+        loadChargeSvg(layer.chargeId).then(rawSvg => {
+          if (rawSvg) {
+            const prep = prepareSvgForLayer(rawSvg, layer.id);
+            layer.viewBox = prep.viewBox;
+            layer.svgInnerContent = prep.inner;
+            renderLayers();
+          }
+        });
       }
+
+      chargeG.appendChild(nestedSvg);
       elemGroup.appendChild(chargeG);
     } else if (layer.shape === 'Image') {
       const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
@@ -2368,6 +2499,11 @@ function renderLayerList() {
     const draftItem = draftedItems.find(d => d.layerId === layer.id);
     const isOccludedBadge = (draftItem && draftItem.isOccluded) ? '<span style="color:#f87171; font-size:0.75rem; margin-left:4px; font-weight:700;" title="This shape is covered by other layers or off-canvas and will count as unused!">⚠️ (Hidden)</span>' : '';
 
+    const isDiceDraft = (currentGameMode === 'dice-draft');
+    const duplicateButtonHtml = !isDiceDraft 
+      ? `<button onclick="duplicateLayer(${layer.id}, event)" title="Duplicate / copy layer">📋</button>`
+      : '';
+
     item.innerHTML = `
       <div style="display:flex; align-items:center;">
         <span class="layer-preview" style="background-color:${layer.hex};"></span>
@@ -2376,6 +2512,7 @@ function renderLayerList() {
       <div class="layer-controls">
         <button onclick="moveLayer(${layer.id}, -1, event)" ${idx === 0 ? 'disabled' : ''} title="Move layer up">▲</button>
         <button onclick="moveLayer(${layer.id}, 1, event)" ${idx === layers.length - 1 ? 'disabled' : ''} title="Move layer down">▼</button>
+        ${duplicateButtonHtml}
         <button class="danger" onclick="deleteLayer(${layer.id}, event)" title="Delete layer">✕</button>
       </div>
     `;
@@ -2419,6 +2556,8 @@ function renderTransformInspector() {
   const dotEl = document.getElementById('trans-color-dot');
   const nameEl = document.getElementById('trans-shape-name');
   const badgeEl = document.getElementById('trans-layer-badge');
+  const dupBtn = document.getElementById('trans-duplicate-btn');
+  if (dupBtn) dupBtn.style.display = (currentGameMode === 'dice-draft') ? 'none' : 'inline-block';
   if (dotEl) dotEl.style.backgroundColor = activeLayer.hex;
   if (nameEl) nameEl.textContent = activeLayer.shape === 'Charge' ? (activeLayer.chargeName || 'Flag Charge') : activeLayer.shape;
   if (badgeEl) {
@@ -3318,6 +3457,26 @@ function showComparisonModal(userCanvas, officialCanvas, scorePct, points, maxPo
 function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
 }
+
+// Global Keyboard Shortcuts (Ctrl/Cmd + D for Duplicate, Delete for Remove)
+window.addEventListener('keydown', (e) => {
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) {
+    return;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+    if (currentGameMode !== 'dice-draft' && selectedId !== null) {
+      e.preventDefault();
+      duplicateSelectedLayer();
+    }
+  } else if (e.key === 'Delete') {
+    if (selectedId !== null) {
+      e.preventDefault();
+      deleteSelectedLayer();
+    }
+  }
+});
 
 document.querySelectorAll('#core-color-swatches .color-swatch').forEach(swatch => {
   swatch.addEventListener('click', () => selectColor(swatch.dataset.color));

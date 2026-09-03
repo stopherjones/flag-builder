@@ -71,6 +71,7 @@
             </div>
             <div class="transform-actions">
               <button type="button" class="small-btn" onclick="centerSelectedShape()" title="Center on flag">🎯 Center</button>
+              <button type="button" id="trans-duplicate-btn" class="small-btn" onclick="duplicateSelectedLayer()" title="Duplicate element">📋 Copy</button>
               <button type="button" class="small-btn danger" onclick="deleteSelectedLayer()" title="Delete shape">✕ Del</button>
             </div>
           </div>
@@ -385,47 +386,32 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <h2>🎖️ Flag Charges & Coats of Arms</h2>
-          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom: 0.4rem;">
-            Vector coats of arms, crests, and national symbols from official flags.
+        <div class="form-group" id="country-charges-group">
+          <h2>🎖️ Country Charges & Elements</h2>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom: 0.5rem;">
+            Select a country to add its official coat of arms, crest, or unique element.
           </p>
 
-          <!-- Quick Access Chips -->
-          <div class="charge-quick-chips">
-            <button type="button" class="preset-pill" onclick="addChargeById('sol_de_mayo')">☀️ Sun of May</button>
-            <button type="button" class="preset-pill" onclick="addChargeById('maple_leaf')">🍁 Maple Leaf</button>
-            <button type="button" class="preset-pill" onclick="addChargeById('double_headed_eagle')">🦅 Double Eagle</button>
-            <button type="button" class="preset-pill" onclick="addChargeById('cedar_tree')">🌲 Lebanese Cedar</button>
-            <button type="button" class="preset-pill" onclick="addChargeById('ashoka_chakra')">☸️ Ashoka Chakra</button>
-            <button type="button" class="preset-pill" onclick="addChargeById('spanish_shield')">🛡️ Royal Shield</button>
+          <div class="form-row" style="margin-bottom: 0.5rem; flex-direction: column; align-items: stretch; gap: 0.35rem;">
+            <label for="charge-country-search" style="font-size: 0.8rem; font-weight: 600; color: var(--text-main);">Country:</label>
+            <div class="combobox-wrapper" id="charge-country-wrapper" style="width: 100%; max-width: 100%;">
+              <input
+                type="text"
+                id="charge-country-search"
+                placeholder="Type or select country (e.g. Spain, Canada)..."
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+                style="width: 100%;"
+              >
+              <button type="button" class="combobox-toggle-btn" id="charge-country-toggle" aria-label="Toggle country list" title="Browse countries">▾</button>
+              <div class="combobox-dropdown" id="charge-country-dropdown" style="display: none;"></div>
+            </div>
           </div>
 
-          <!-- Detailed Catalog Selector with Live Thumbnail Preview -->
-          <div class="charge-selector-card">
-            <div class="charge-preview-box" id="charge-live-preview">
-              <!-- SVG preview injected dynamically -->
-            </div>
-            <div class="charge-selector-controls">
-              <div class="form-row" style="margin: 0; gap: 0.3rem;">
-                <select id="charge-category-filter" style="font-size: 0.78rem; flex: 1;" onchange="filterChargesByCategory(this.value)">
-                  <option value="ALL">All Categories</option>
-                  <option value="Celestial">Celestial & Astral</option>
-                  <option value="Nature">Nature & Plants</option>
-                  <option value="Beasts">Beasts & Animals</option>
-                  <option value="Heraldry">Heraldry & Shields</option>
-                  <option value="Emblems">Emblems & Symbols</option>
-                </select>
-              </div>
-              <div class="form-row" style="margin: 0.25rem 0 0 0; gap: 0.3rem;">
-                <select id="emblem-select" style="font-size: 0.82rem; flex: 1;" onchange="onChargeSelectChange(this.value)">
-                  <!-- Populated dynamically from FLAG_CHARGES -->
-                </select>
-              </div>
-              <div class="form-row" style="margin: 0.35rem 0 0 0; justify-content: flex-end;">
-                <button class="primary" id="add-emblem-btn" style="width: 100%;" onclick="addSelectedEmblem()">+ Add Charge to Flag</button>
-              </div>
-            </div>
+          <div class="form-row" style="margin-top: 0.4rem;">
+            <button class="primary" id="add-charge-btn" style="width: 100%;" onclick="addSelectedChargeFromPicker()">+ Add Unique Element to Flag</button>
           </div>
         </div>
       </div>
