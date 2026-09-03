@@ -770,7 +770,8 @@ async function loadChargeSvg(codeOrId) {
   }
 
   try {
-    const res = await fetch('/svg/' + encodeURIComponent(code) + '.svg');
+    const assetUrl = new URL('svg/' + encodeURIComponent(code) + '.svg', document.baseURI);
+    const res = await fetch(assetUrl);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const svgText = await res.text();
     CHARGE_SVG_CACHE[code] = svgText;
