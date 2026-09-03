@@ -1,16 +1,99 @@
-const COLOR_HEX_MAP = {
-  "Deep red": "#8b0000",
-  "Red": "#ce1126",
-  "Orange": "#ff8200",
-  "Yellow": "#fcd116",
-  "Deep green": "#006b3c",
-  "Green": "#009a49",
-  "Deep blue": "#00247d",
-  "Blue": "#0057b7",
-  "Light blue": "#5bcefa",
-  "White": "#ffffff",
-  "Black": "#000000"
+const CORE_FLAG_COLORS = {
+  "White": { name: "White", hex: "#ffffff", h: 0, s: 0, l: 100 },
+  "Black": { name: "Black", hex: "#000000", h: 0, s: 0, l: 0 },
+  "Red": { name: "Red", hex: "#ce1126", h: 353, s: 85, l: 47 },
+  "Blue": { name: "Blue", hex: "#0057b7", h: 211, s: 100, l: 36 },
+  "Green": { name: "Green", hex: "#009a49", h: 149, s: 100, l: 30 },
+  "Yellow": { name: "Yellow", hex: "#fcd116", h: 49, s: 97, l: 54 },
+  "Orange": { name: "Orange", hex: "#ff8200", h: 31, s: 100, l: 50 }
 };
+
+const COLOR_HEX_MAP = {
+  "White": "#ffffff",
+  "Black": "#000000",
+  "Red": "#ce1126",
+  "Blue": "#0057b7",
+  "Green": "#009a49",
+  "Yellow": "#fcd116",
+  "Orange": "#ff8200",
+  // Legacy aliases for backward compatibility
+  "Deep red": "#8b0000",
+  "Deep green": "#006b3c",
+  "Deep blue": "#00247d",
+  "Light blue": "#5bcefa"
+};
+
+// Color Utility Functions
+function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(100, s)) / 100;
+  l = Math.max(0, Math.min(100, l)) / 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+
+  if (0 <= h && h < 60) {
+    r = c; g = x; b = 0;
+  } else if (60 <= h && h < 120) {
+    r = x; g = c; b = 0;
+  } else if (120 <= h && h < 180) {
+    r = 0; g = c; b = x;
+  } else if (180 <= h && h < 240) {
+    r = 0; g = x; b = c;
+  } else if (240 <= h && h < 300) {
+    r = x; g = 0; b = c;
+  } else if (300 <= h && h < 360) {
+    r = c; g = 0; b = x;
+  }
+
+  const toHex = val => {
+    const hex = Math.round((val + m) * 255).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function hexToHsl(hex) {
+  if (!hex) return { h: 0, s: 0, l: 100 };
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c.split('').map(x => x + x).join('');
+  if (c.length !== 6) return { h: 0, s: 0, l: 100 };
+  const num = parseInt(c, 16);
+  let r = (num >> 16) / 255;
+  let g = ((num >> 8) & 255) / 255;
+  let b = (num & 255) / 255;
+
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) * 60; break;
+      case g: h = ((b - r) / d + 2) * 60; break;
+      case b: h = ((r - g) / d + 4) * 60; break;
+    }
+  }
+  return {
+    h: Math.round(h),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  };
+}
+
+let currentPickerColor = {
+  name: "Red",
+  h: 353,
+  s: 85,
+  l: 47,
+  hex: "#ce1126"
+};
+let isHueLockedInDraft = false;
+let lockedColorName = "Red";
 
 let countryList = [];
 let currentTarget = { name: "Japan", code: "jp", flagUrl: "https://flagcdn.com/w640/jp.png" };
@@ -58,32 +141,35 @@ const SHAPE_2D6_TABLE = {
   12: { name: "Free Choice", label: "🌟 Free Choice Shape" }
 };
 
-const COLOR_1D12_TABLE = {
-  1: { name: "Deep red", hex: "#8b0000" },
-  2: { name: "Red", hex: "#ce1126" },
-  3: { name: "Orange", hex: "#ff8200" },
-  4: { name: "Yellow", hex: "#fcd116" },
-  5: { name: "Deep green", hex: "#006b3c" },
-  6: { name: "Green", hex: "#009a49" },
-  7: { name: "Deep blue", hex: "#00247d" },
-  8: { name: "Blue", hex: "#0057b7" },
-  9: { name: "Light blue", hex: "#5bcefa" },
-  10: { name: "White", hex: "#ffffff" },
-  11: { name: "Black", hex: "#000000" },
-  12: { name: "Free Choice", hex: "#d99b26" }
+// 1D8 Colour Table with 8 = Free Choice
+const COLOR_1D8_TABLE = {
+  1: { name: "White", hex: "#ffffff", h: 0, s: 0, l: 100 },
+  2: { name: "Black", hex: "#000000", h: 0, s: 0, l: 0 },
+  3: { name: "Red", hex: "#ce1126", h: 353, s: 85, l: 47 },
+  4: { name: "Blue", hex: "#0057b7", h: 211, s: 100, l: 36 },
+  5: { name: "Green", hex: "#009a49", h: 149, s: 100, l: 30 },
+  6: { name: "Yellow", hex: "#fcd116", h: 49, s: 97, l: 54 },
+  7: { name: "Orange", hex: "#ff8200", h: 31, s: 100, l: 50 },
+  8: { name: "Free Choice", hex: "#d99b26", h: 40, s: 80, l: 50 }
 };
+
+// Backward-compatibility alias
+const COLOR_1D12_TABLE = COLOR_1D8_TABLE;
 
 // Complexity tiers for target countries
 const HIGH_COMPLEXITY_COUNTRIES = [
   "us", "au", "nz", "br", "mx", "es", "za", "ar", "uy", "ca", "ke", "in", 
   "lk", "eg", "hr", "pt", "kr", "pg", "ec", "py", "bo", "sv", "gt", "hn", 
-  "ni", "af", "al", "ad", "ao", "bt", "kh", "dm", "sz", "me", "mz", "ug", "zw"
+  "ni", "af", "al", "ad", "ao", "bt", "kh", "dm", "sz", "me", "mz", "ug", "zw",
+  "ki", "vu", "tv", "sm", "va", "gq", "ss", "tm", "gd"
 ];
 
 const MEDIUM_COMPLEXITY_COUNTRIES = [
   "se", "no", "dk", "fi", "is", "gr", "ch", "gb", "cz", "cu", "jo", "kw", 
   "jm", "bs", "cl", "tr", "vn", "so", "gh", "sn", "cm", "my", "pk", "dz", 
-  "tn", "ly", "sg", "il", "pa", "sr", "ge", "bb", "kn", "vc", "lc"
+  "tn", "ly", "sg", "il", "pa", "sr", "ge", "bb", "kn", "vc", "lc",
+  "mh", "nr", "ag", "cv", "km", "sb", "sc", "st", "ws", "gy", "ls", "gw",
+  "er", "tl", "cd", "kg", "tj", "li", "xk", "ps"
 ];
 
 function getCountryComplexity(code, name) {
@@ -103,6 +189,7 @@ const STATIC_COUNTRIES = [
   { name: "Algeria", code: "dz" },
   { name: "Andorra", code: "ad" },
   { name: "Angola", code: "ao" },
+  { name: "Antigua and Barbuda", code: "ag" },
   { name: "Argentina", code: "ar" },
   { name: "Armenia", code: "am" },
   { name: "Australia", code: "au" },
@@ -125,6 +212,7 @@ const STATIC_COUNTRIES = [
   { name: "Bulgaria", code: "bg" },
   { name: "Burkina Faso", code: "bf" },
   { name: "Burundi", code: "bi" },
+  { name: "Cabo Verde", code: "cv" },
   { name: "Cambodia", code: "kh" },
   { name: "Cameroon", code: "cm" },
   { name: "Canada", code: "ca" },
@@ -133,11 +221,13 @@ const STATIC_COUNTRIES = [
   { name: "Chile", code: "cl" },
   { name: "China", code: "cn" },
   { name: "Colombia", code: "co" },
+  { name: "Comoros", code: "km" },
   { name: "Costa Rica", code: "cr" },
   { name: "Croatia", code: "hr" },
   { name: "Cuba", code: "cu" },
   { name: "Cyprus", code: "cy" },
   { name: "Czech Republic", code: "cz" },
+  { name: "Democratic Republic of the Congo", code: "cd" },
   { name: "Denmark", code: "dk" },
   { name: "Djibouti", code: "dj" },
   { name: "Dominica", code: "dm" },
@@ -145,7 +235,10 @@ const STATIC_COUNTRIES = [
   { name: "Ecuador", code: "ec" },
   { name: "Egypt", code: "eg" },
   { name: "El Salvador", code: "sv" },
+  { name: "Equatorial Guinea", code: "gq" },
+  { name: "Eritrea", code: "er" },
   { name: "Estonia", code: "ee" },
+  { name: "Eswatini", code: "sz" },
   { name: "Ethiopia", code: "et" },
   { name: "Fiji", code: "fj" },
   { name: "Finland", code: "fi" },
@@ -156,8 +249,11 @@ const STATIC_COUNTRIES = [
   { name: "Germany", code: "de" },
   { name: "Ghana", code: "gh" },
   { name: "Greece", code: "gr" },
+  { name: "Grenada", code: "gd" },
   { name: "Guatemala", code: "gt" },
   { name: "Guinea", code: "gn" },
+  { name: "Guinea-Bissau", code: "gw" },
+  { name: "Guyana", code: "gy" },
   { name: "Haiti", code: "ht" },
   { name: "Honduras", code: "hn" },
   { name: "Hungary", code: "hu" },
@@ -169,17 +265,23 @@ const STATIC_COUNTRIES = [
   { name: "Ireland", code: "ie" },
   { name: "Israel", code: "il" },
   { name: "Italy", code: "it" },
+  { name: "Ivory Coast", code: "ci" },
   { name: "Jamaica", code: "jm" },
   { name: "Japan", code: "jp" },
   { name: "Jordan", code: "jo" },
   { name: "Kazakhstan", code: "kz" },
   { name: "Kenya", code: "ke" },
+  { name: "Kiribati", code: "ki" },
+  { name: "Kosovo", code: "xk" },
   { name: "Kuwait", code: "kw" },
+  { name: "Kyrgyzstan", code: "kg" },
   { name: "Laos", code: "la" },
   { name: "Latvia", code: "lv" },
   { name: "Lebanon", code: "lb" },
+  { name: "Lesotho", code: "ls" },
   { name: "Liberia", code: "lr" },
   { name: "Libya", code: "ly" },
+  { name: "Liechtenstein", code: "li" },
   { name: "Lithuania", code: "lt" },
   { name: "Luxembourg", code: "lu" },
   { name: "Madagascar", code: "mg" },
@@ -188,9 +290,11 @@ const STATIC_COUNTRIES = [
   { name: "Maldives", code: "mv" },
   { name: "Mali", code: "ml" },
   { name: "Malta", code: "mt" },
+  { name: "Marshall Islands", code: "mh" },
   { name: "Mauritania", code: "mr" },
   { name: "Mauritius", code: "mu" },
   { name: "Mexico", code: "mx" },
+  { name: "Micronesia", code: "fm" },
   { name: "Moldova", code: "md" },
   { name: "Monaco", code: "mc" },
   { name: "Mongolia", code: "mn" },
@@ -199,6 +303,7 @@ const STATIC_COUNTRIES = [
   { name: "Mozambique", code: "mz" },
   { name: "Myanmar", code: "mm" },
   { name: "Namibia", code: "na" },
+  { name: "Nauru", code: "nr" },
   { name: "Nepal", code: "np" },
   { name: "Netherlands", code: "nl" },
   { name: "New Zealand", code: "nz" },
@@ -210,6 +315,8 @@ const STATIC_COUNTRIES = [
   { name: "Norway", code: "no" },
   { name: "Oman", code: "om" },
   { name: "Pakistan", code: "pk" },
+  { name: "Palau", code: "pw" },
+  { name: "Palestine", code: "ps" },
   { name: "Panama", code: "pa" },
   { name: "Papua New Guinea", code: "pg" },
   { name: "Paraguay", code: "py" },
@@ -218,32 +325,48 @@ const STATIC_COUNTRIES = [
   { name: "Poland", code: "pl" },
   { name: "Portugal", code: "pt" },
   { name: "Qatar", code: "qa" },
+  { name: "Republic of the Congo", code: "cg" },
   { name: "Romania", code: "ro" },
   { name: "Russia", code: "ru" },
   { name: "Rwanda", code: "rw" },
+  { name: "Saint Kitts and Nevis", code: "kn" },
+  { name: "Saint Lucia", code: "lc" },
+  { name: "Saint Vincent and the Grenadines", code: "vc" },
+  { name: "Samoa", code: "ws" },
+  { name: "San Marino", code: "sm" },
+  { name: "Sao Tome and Principe", code: "st" },
   { name: "Saudi Arabia", code: "sa" },
   { name: "Senegal", code: "sn" },
   { name: "Serbia", code: "rs" },
+  { name: "Seychelles", code: "sc" },
   { name: "Sierra Leone", code: "sl" },
   { name: "Singapore", code: "sg" },
   { name: "Slovakia", code: "sk" },
   { name: "Slovenia", code: "si" },
+  { name: "Solomon Islands", code: "sb" },
   { name: "Somalia", code: "so" },
   { name: "South Africa", code: "za" },
   { name: "South Korea", code: "kr" },
+  { name: "South Sudan", code: "ss" },
   { name: "Spain", code: "es" },
   { name: "Sri Lanka", code: "lk" },
   { name: "Sudan", code: "sd" },
+  { name: "Suriname", code: "sr" },
   { name: "Sweden", code: "se" },
   { name: "Switzerland", code: "ch" },
   { name: "Syria", code: "sy" },
   { name: "Taiwan", code: "tw" },
+  { name: "Tajikistan", code: "tj" },
   { name: "Tanzania", code: "tz" },
   { name: "Thailand", code: "th" },
+  { name: "Timor-Leste", code: "tl" },
   { name: "Togo", code: "tg" },
+  { name: "Tonga", code: "to" },
   { name: "Trinidad and Tobago", code: "tt" },
   { name: "Tunisia", code: "tn" },
   { name: "Turkey", code: "tr" },
+  { name: "Turkmenistan", code: "tm" },
+  { name: "Tuvalu", code: "tv" },
   { name: "Uganda", code: "ug" },
   { name: "Ukraine", code: "ua" },
   { name: "United Arab Emirates", code: "ae" },
@@ -251,6 +374,8 @@ const STATIC_COUNTRIES = [
   { name: "United States", code: "us" },
   { name: "Uruguay", code: "uy" },
   { name: "Uzbekistan", code: "uz" },
+  { name: "Vanuatu", code: "vu" },
+  { name: "Vatican City", code: "va" },
   { name: "Venezuela", code: "ve" },
   { name: "Vietnam", code: "vn" },
   { name: "Yemen", code: "ye" },
@@ -319,6 +444,7 @@ function setGameMode(mode) {
   if (diceDraftButton) diceDraftButton.classList.toggle('primary', mode === 'dice-draft');
 
   if (mode === 'daily') {
+    isHueLockedInDraft = false;
     if (standardPanel) standardPanel.style.display = 'block';
     if (dicePanel) dicePanel.style.display = 'none';
     if (standardTargetBar) standardTargetBar.style.display = 'flex';
@@ -330,6 +456,7 @@ function setGameMode(mode) {
     }
     if (randomButton) randomButton.disabled = false;
   } else if (mode === 'free') {
+    isHueLockedInDraft = false;
     if (standardPanel) standardPanel.style.display = 'block';
     if (dicePanel) dicePanel.style.display = 'none';
     if (standardTargetBar) standardTargetBar.style.display = 'flex';
@@ -341,6 +468,7 @@ function setGameMode(mode) {
     }
     if (randomButton) randomButton.disabled = false;
   } else if (mode === 'dice-draft') {
+    isHueLockedInDraft = true;
     if (standardPanel) standardPanel.style.display = 'none';
     if (dicePanel) dicePanel.style.display = 'block';
     if (standardTargetBar) standardTargetBar.style.display = 'none';
@@ -352,6 +480,7 @@ function setGameMode(mode) {
     if (randomButton) randomButton.disabled = true;
   }
 
+  updateColorPickerLockState();
   updateTargetPointsDisplay();
 }
 
@@ -446,13 +575,31 @@ function roll2D6() {
   return { d1, d2, sum, shape: shapeDef.name, label: shapeDef.label };
 }
 
+function roll1D8() {
+  const d8 = Math.floor(Math.random() * 8) + 1;
+  const colorDef = COLOR_1D8_TABLE[d8] || COLOR_1D8_TABLE[3];
+  return {
+    d8,
+    color: colorDef.name,
+    hex: colorDef.hex,
+    h: colorDef.h,
+    s: colorDef.s,
+    l: colorDef.l
+  };
+}
+
+// Backward-compatibility alias
 function roll1D12() {
-  const d12 = Math.floor(Math.random() * 12) + 1;
-  const colorDef = COLOR_1D12_TABLE[d12] || { name: "Red", hex: "#ce1126" };
-  return { d12, color: colorDef.name, hex: colorDef.hex };
+  return roll1D8();
 }
 
 function createDraftItemFromRoll(rollShape, rollColor) {
+  const isFreeChoice = (rollColor.d8 === 8 || rollColor.color === 'Free Choice');
+  const baseHue = rollColor.h !== undefined ? rollColor.h : 353;
+  const baseSat = rollColor.s !== undefined ? rollColor.s : 85;
+  const baseLight = rollColor.l !== undefined ? rollColor.l : 47;
+  const baseHex = rollColor.hex || hslToHex(baseHue, baseSat, baseLight);
+
   return {
     id: Date.now() + Math.floor(Math.random() * 100000),
     roll2d6: rollShape.sum,
@@ -460,50 +607,108 @@ function createDraftItemFromRoll(rollShape, rollColor) {
     die2: rollShape.d2,
     shapeType: rollShape.shape,
     selectedShape: (rollShape.shape === 'Free Choice' ? 'Rectangle' : rollShape.shape),
-    roll1d12: rollColor.d12,
+    roll1d8: rollColor.d8,
     colorName: rollColor.color,
-    selectedColor: (rollColor.color === 'Free Choice' ? 'Red' : rollColor.color),
+    selectedColor: (isFreeChoice ? 'Red' : rollColor.color),
+    hue: baseHue,
+    saturation: baseSat,
+    lightness: baseLight,
+    hex: baseHex,
+    isHueLocked: !isFreeChoice,
     starPoints: 5,
     crossStyle: 'regular',
     crossThickness: 35,
+    chargeId: 'sol_de_mayo',
     layerId: null
   };
 }
 
-function animateDiceUI(d1, d2, d12, callback) {
+let isStartingBasePending = true;
+
+function animateStartingRectangleRoll(d8, callback) {
   const die1El = document.getElementById('die-1');
   const die2El = document.getElementById('die-2');
-  const dieD12El = document.getElementById('die-d12');
+  const dieD8El = document.getElementById('die-d8') || document.getElementById('die-d12');
 
   const shapeText = document.getElementById('shape-roll-result');
   const colorText = document.getElementById('color-roll-result');
 
-  if (die1El && die2El && dieD12El) {
+  if (die1El) die1El.textContent = '█';
+  if (die2El) die2El.textContent = '█';
+  if (shapeText) shapeText.textContent = '█ Base Rectangle (Fixed)';
+
+  if (dieD8El) {
+    dieD8El.classList.add('rolling');
+    let counter = 0;
+    const interval = setInterval(() => {
+      counter++;
+      dieD8El.textContent = Math.floor(Math.random() * 8) + 1;
+      if (counter > 8) {
+        clearInterval(interval);
+        dieD8El.textContent = d8;
+        dieD8El.classList.remove('rolling');
+
+        const colorDef = COLOR_1D8_TABLE[d8];
+        if (colorText) {
+          if (d8 === 8) {
+            colorText.textContent = `8 ➔ 🌟 Free Choice!`;
+          } else if (colorDef.name === 'White' || colorDef.name === 'Black') {
+            colorText.textContent = `${d8} ➔ ${colorDef.name} (Pure tone)`;
+          } else {
+            colorText.textContent = `${d8} ➔ ${colorDef.name} (Light/Sat)`;
+          }
+        }
+
+        if (callback) callback();
+      }
+    }, 50);
+  } else {
+    if (callback) callback();
+  }
+}
+
+function animateDiceUI(d1, d2, d8, callback) {
+  const die1El = document.getElementById('die-1');
+  const die2El = document.getElementById('die-2');
+  const dieD8El = document.getElementById('die-d8') || document.getElementById('die-d12');
+
+  const shapeText = document.getElementById('shape-roll-result');
+  const colorText = document.getElementById('color-roll-result');
+
+  if (die1El && die2El && dieD8El) {
     die1El.classList.add('rolling');
     die2El.classList.add('rolling');
-    dieD12El.classList.add('rolling');
+    dieD8El.classList.add('rolling');
 
     let counter = 0;
     const interval = setInterval(() => {
       counter++;
       die1El.textContent = Math.floor(Math.random() * 6) + 1;
       die2El.textContent = Math.floor(Math.random() * 6) + 1;
-      dieD12El.textContent = Math.floor(Math.random() * 12) + 1;
+      dieD8El.textContent = Math.floor(Math.random() * 8) + 1;
       if (counter > 8) {
         clearInterval(interval);
         die1El.textContent = d1;
         die2El.textContent = d2;
-        dieD12El.textContent = d12;
+        dieD8El.textContent = d8;
         die1El.classList.remove('rolling');
         die2El.classList.remove('rolling');
-        dieD12El.classList.remove('rolling');
+        dieD8El.classList.remove('rolling');
 
         const sum = d1 + d2;
         const shapeDef = SHAPE_2D6_TABLE[sum];
-        const colorDef = COLOR_1D12_TABLE[d12];
+        const colorDef = COLOR_1D8_TABLE[d8];
 
         if (shapeText) shapeText.textContent = `${sum} ➔ ${shapeDef.label}`;
-        if (colorText) colorText.textContent = `${d12} ➔ ${colorDef.name}`;
+        if (colorText) {
+          if (d8 === 8) {
+            colorText.textContent = `8 ➔ 🌟 Free Choice!`;
+          } else if (colorDef.name === 'White' || colorDef.name === 'Black') {
+            colorText.textContent = `${d8} ➔ ${colorDef.name} (Pure tone)`;
+          } else {
+            colorText.textContent = `${d8} ➔ ${colorDef.name} (Light/Sat)`;
+          }
+        }
 
         if (callback) callback();
       }
@@ -516,21 +721,31 @@ function animateDiceUI(d1, d2, d12, callback) {
 function resetDiceDraftGame() {
   clearCanvas();
   draftedItems = [];
+  isStartingBasePending = true;
 
   const die1El = document.getElementById('die-1');
   const die2El = document.getElementById('die-2');
-  const dieD12El = document.getElementById('die-d12');
-  if (die1El) die1El.textContent = '🎲';
-  if (die2El) die2El.textContent = '🎲';
-  if (dieD12El) dieD12El.textContent = '🎲';
+  const dieD8El = document.getElementById('die-d8') || document.getElementById('die-d12');
+  if (die1El) die1El.textContent = '█';
+  if (die2El) die2El.textContent = '█';
+  if (dieD8El) dieD8El.textContent = '🎲';
+
+  const shapeLabel = document.getElementById('shape-dice-label');
+  if (shapeLabel) shapeLabel.textContent = 'Shape (Starting Base)';
 
   const shapeText = document.getElementById('shape-roll-result');
   const colorText = document.getElementById('color-roll-result');
   const banner = document.getElementById('latest-roll-banner');
+  const rollBtn = document.getElementById('roll-element-btn');
 
-  if (shapeText) shapeText.textContent = 'Ready to roll';
-  if (colorText) colorText.textContent = 'Ready to roll';
+  if (shapeText) shapeText.textContent = '█ Base Rectangle (Fixed)';
+  if (colorText) colorText.textContent = 'Ready to roll colour (1D8)';
   if (banner) banner.style.display = 'none';
+
+  if (rollBtn) {
+    rollBtn.disabled = false;
+    rollBtn.textContent = '🎲 Roll Colour for Starting Rectangle (1D8)';
+  }
 
   renderDraftedTray();
 }
@@ -545,16 +760,91 @@ function rollNextElement() {
     rollBtn.textContent = 'Rolling...';
   }
 
+  if (isStartingBasePending) {
+    const rollColor = roll1D8();
+    animateStartingRectangleRoll(rollColor.d8, () => {
+      isRollingDice = false;
+      isStartingBasePending = false;
+
+      const isFreeChoice = (rollColor.d8 === 8 || rollColor.color === 'Free Choice');
+      const startItem = {
+        id: Date.now() + Math.floor(Math.random() * 10000),
+        roll2d6: 12,
+        die1: 6,
+        die2: 6,
+        shapeType: 'Rectangle',
+        shapeLabel: '█ Rectangle (Starting Base)',
+        selectedShape: 'Rectangle',
+        roll1d8: rollColor.d8,
+        colorName: rollColor.color,
+        selectedColor: (isFreeChoice ? 'Red' : rollColor.color),
+        hue: rollColor.h,
+        saturation: rollColor.s,
+        lightness: rollColor.l,
+        hex: rollColor.hex,
+        isHueLocked: !isFreeChoice,
+        isStartingRectangle: true,
+        starPoints: 5,
+        crossStyle: 'regular',
+        crossThickness: 35,
+        chargeId: 'sol_de_mayo',
+        layerId: null
+      };
+      draftedItems.push(startItem);
+
+      // Automatically place the starting rectangle on the canvas as Layer 1
+      const baseLayer = {
+        id: Date.now(),
+        draftItemId: startItem.id,
+        shape: 'Rectangle',
+        color: startItem.colorName === 'Free Choice' ? startItem.selectedColor : startItem.colorName,
+        hue: startItem.hue,
+        saturation: startItem.saturation,
+        lightness: startItem.lightness,
+        hex: startItem.hex,
+        isHueLocked: startItem.isHueLocked,
+        x: 300,
+        y: 200,
+        scaleX: 1.0,
+        scaleY: 1.0,
+        rotation: 0
+      };
+      layers.push(baseLayer);
+      startItem.layerId = baseLayer.id;
+      selectedId = baseLayer.id;
+      render();
+
+      if (rollBtn) {
+        rollBtn.disabled = false;
+        rollBtn.textContent = '🎲 Roll Next Element (2D6 + 1D8)';
+      }
+
+      const shapeLabel = document.getElementById('shape-dice-label');
+      if (shapeLabel) shapeLabel.textContent = 'Shape (2D6)';
+
+      const banner = document.getElementById('latest-roll-banner');
+      const bannerText = document.getElementById('latest-roll-text');
+      if (banner && bannerText) {
+        banner.style.display = 'block';
+        const colorLabel = startItem.colorName === 'Free Choice' ? '🌟 Free Choice Colour' : `${startItem.colorName}`;
+        bannerText.innerHTML = `Starting Base Placed: <strong>Rectangle (${colorLabel})</strong>! Now roll additional pieces or adjust.`;
+      }
+
+      renderDraftedTray();
+    });
+    return;
+  }
+
   const rollShape = roll2D6();
-  const rollColor = roll1D12();
+  const rollColor = roll1D8();
   const newItem = createDraftItemFromRoll(rollShape, rollColor);
   draftedItems.push(newItem);
 
-  animateDiceUI(rollShape.d1, rollShape.d2, rollColor.d12, () => {
+  animateDiceUI(rollShape.d1, rollShape.d2, rollColor.d8, () => {
     isRollingDice = false;
     if (rollBtn) {
       rollBtn.disabled = false;
-      rollBtn.textContent = '🎲 Roll Next Element';
+      rollBtn.textContent = '🎲 Roll Next Element (2D6 + 1D8)';
     }
 
     const banner = document.getElementById('latest-roll-banner');
@@ -562,8 +852,8 @@ function rollNextElement() {
     if (banner && bannerText) {
       banner.style.display = 'block';
       const shapeLabel = newItem.shapeType === 'Free Choice' ? '🌟 Free Choice Shape' : newItem.shapeType;
-      const colorLabel = newItem.colorName === 'Free Choice' ? '🌈 Free Choice Colour' : newItem.colorName;
-      bannerText.textContent = `Rolled: ${shapeLabel} (${colorLabel})! Element #${draftedItems.length}`;
+      const colorLabel = newItem.colorName === 'Free Choice' ? '🌈 Free Choice Colour (Unrestricted)' : `${newItem.colorName}`;
+      bannerText.innerHTML = `Rolled: <strong>${shapeLabel}</strong> + <strong>${colorLabel}</strong>! Element #${draftedItems.length}`;
     }
 
     renderDraftedTray();
@@ -586,17 +876,26 @@ function placeDraftItem(draftId) {
   // Otherwise create new canvas layer
   const resolvedShape = item.shapeType === 'Free Choice' ? item.selectedShape : item.shapeType;
   const resolvedColor = item.colorName === 'Free Choice' ? item.selectedColor : item.colorName;
-  const hex = COLOR_HEX_MAP[resolvedColor] || "#ffffff";
+  const hex = item.hex || hslToHex(item.hue, item.saturation, item.lightness);
+  const chargeData = resolvedShape === 'Charge' ? getChargeById(item.chargeId || 'sol_de_mayo') : null;
 
   const newLayer = {
     id: Date.now(),
     draftItemId: item.id,
     shape: resolvedShape,
+    chargeId: chargeData ? chargeData.id : null,
+    chargeName: chargeData ? chargeData.name : null,
+    baseWidth: chargeData ? chargeData.defaultWidth : 150,
+    baseHeight: chargeData ? chargeData.defaultHeight : 150,
     crossStyle: item.crossStyle,
     crossThickness: item.crossThickness,
     pointsCount: item.starPoints,
     color: resolvedColor,
+    hue: item.hue,
+    saturation: item.saturation,
+    lightness: item.lightness,
     hex: hex,
+    isHueLocked: item.isHueLocked,
     x: 300,
     y: 200,
     scaleX: resolvedShape === 'Rectangle' ? 1.0 : 0.6,
@@ -612,11 +911,67 @@ function placeDraftItem(draftId) {
   renderDraftedTray();
 }
 
+function updateDraftLightness(draftId, val) {
+  const item = draftedItems.find(d => d.id === draftId);
+  if (!item) return;
+  const num = parseInt(val, 10);
+  item.lightness = num;
+  item.hex = hslToHex(item.hue !== undefined ? item.hue : 0, item.saturation !== undefined ? item.saturation : 85, num);
+
+  const display = document.getElementById(`draft-item-l-${draftId}`);
+  if (display) display.textContent = `${num}%`;
+
+  const chip = document.getElementById(`draft-chip-${draftId}`);
+  if (chip) chip.style.backgroundColor = item.hex;
+
+  if (item.layerId) {
+    const layer = layers.find(l => l.id === item.layerId);
+    if (layer) {
+      layer.lightness = num;
+      layer.hex = item.hex;
+      render();
+    }
+  }
+}
+
+function updateDraftSaturation(draftId, val) {
+  const item = draftedItems.find(d => d.id === draftId);
+  if (!item) return;
+  const num = parseInt(val, 10);
+  item.saturation = num;
+  item.hex = hslToHex(item.hue !== undefined ? item.hue : 0, num, item.lightness !== undefined ? item.lightness : 50);
+
+  const display = document.getElementById(`draft-item-s-${draftId}`);
+  if (display) display.textContent = `${num}%`;
+
+  const chip = document.getElementById(`draft-chip-${draftId}`);
+  if (chip) chip.style.backgroundColor = item.hex;
+
+  if (item.layerId) {
+    const layer = layers.find(l => l.id === item.layerId);
+    if (layer) {
+      layer.saturation = num;
+      layer.hex = item.hex;
+      render();
+    }
+  }
+}
+
 function updateDraftOption(draftId, key, value) {
   const item = draftedItems.find(d => d.id === draftId);
   if (!item) return;
 
   item[key] = value;
+
+  if (key === 'selectedColor') {
+    const def = CORE_FLAG_COLORS[value] || { hex: COLOR_HEX_MAP[value] || '#ce1126', h: 353, s: 85, l: 47 };
+    item.hue = def.h;
+    item.saturation = def.s;
+    item.lightness = def.l;
+    item.hex = def.hex;
+    const chip = document.getElementById(`draft-chip-${draftId}`);
+    if (chip) chip.style.backgroundColor = item.hex;
+  }
 
   // If already on canvas, update the active layer
   if (item.layerId) {
@@ -624,9 +979,25 @@ function updateDraftOption(draftId, key, value) {
     if (layer) {
       if (key === 'selectedShape') {
         layer.shape = value;
+        if (value === 'Charge') {
+          const ch = getChargeById(item.chargeId || 'sol_de_mayo');
+          layer.chargeId = ch.id;
+          layer.chargeName = ch.name;
+          layer.baseWidth = ch.defaultWidth;
+          layer.baseHeight = ch.defaultHeight;
+        }
+      } else if (key === 'chargeId') {
+        const ch = getChargeById(value);
+        layer.chargeId = ch.id;
+        layer.chargeName = ch.name;
+        layer.baseWidth = ch.defaultWidth;
+        layer.baseHeight = ch.defaultHeight;
       } else if (key === 'selectedColor') {
         layer.color = value;
-        layer.hex = COLOR_HEX_MAP[value] || "#ffffff";
+        layer.hue = item.hue;
+        layer.saturation = item.saturation;
+        layer.lightness = item.lightness;
+        layer.hex = item.hex;
       } else if (key === 'starPoints') {
         layer.pointsCount = parseInt(value, 10);
       } else if (key === 'crossStyle') {
@@ -649,7 +1020,7 @@ function renderDraftedTray() {
   if (countSpan) countSpan.textContent = draftedItems.length;
 
   if (draftedItems.length === 0) {
-    tray.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted); text-align:center;">No elements drafted yet.</div>';
+    tray.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted); text-align:center;">No elements drafted yet. Roll above!</div>';
     return;
   }
 
@@ -664,7 +1035,7 @@ function renderDraftedTray() {
 
     const effectiveShape = item.shapeType === 'Free Choice' ? item.selectedShape : item.shapeType;
     const effectiveColor = item.colorName === 'Free Choice' ? item.selectedColor : item.colorName;
-    const hex = COLOR_HEX_MAP[effectiveColor] || "#ffffff";
+    const hex = item.hex || hslToHex(item.hue, item.saturation, item.lightness);
 
     let shapeDisplayName = item.shapeType;
     if (item.shapeType === 'Free Choice') shapeDisplayName = `🌟 Free Choice`;
@@ -710,6 +1081,20 @@ function renderDraftedTray() {
       `;
     }
 
+    // If shape is Charge (or chosen via Free Choice)
+    if (effectiveShape === 'Charge') {
+      subControls += `
+        <div class="draft-controls-row">
+          <label style="font-size:0.75rem;">Charge:</label>
+          <select onchange="updateDraftOption(${item.id}, 'chargeId', this.value)">
+            ${(typeof FLAG_CHARGES !== 'undefined' ? FLAG_CHARGES : []).map(ch => `
+              <option value="${ch.id}" ${item.chargeId === ch.id ? 'selected' : ''}>${ch.name} (${ch.country.split('/')[0].trim()})</option>
+            `).join('')}
+          </select>
+        </div>
+      `;
+    }
+
     // If shape was 12 (Free Choice Shape)
     if (item.shapeType === 'Free Choice') {
       subControls += `
@@ -722,6 +1107,7 @@ function renderDraftedTray() {
             <option value="Star" ${item.selectedShape === 'Star' ? 'selected' : ''}>Star</option>
             <option value="Crescent" ${item.selectedShape === 'Crescent' ? 'selected' : ''}>Crescent</option>
             <option value="Cross" ${item.selectedShape === 'Cross' ? 'selected' : ''}>Cross</option>
+            <option value="Charge" ${item.selectedShape === 'Charge' ? 'selected' : ''}>🎖️ Flag Charge</option>
           </select>
           <div class="mini-dice-group" title="Rolled Double 6 (2D6 = 12) for Free Shape Choice">
             <span class="mini-d6">6</span>
@@ -732,33 +1118,76 @@ function renderDraftedTray() {
       `;
     }
 
-    // If color was 12 (Free Choice Colour)
+    // If color was 8 (Free Choice Colour)
     if (item.colorName === 'Free Choice') {
       subControls += `
         <div class="draft-controls-row">
-          <label style="font-size:0.75rem;">Choose Colour:</label>
+          <label style="font-size:0.75rem;">Free Colour:</label>
           <select onchange="updateDraftOption(${item.id}, 'selectedColor', this.value)">
-            ${Object.keys(COLOR_HEX_MAP).map(col => `
+            ${Object.keys(CORE_FLAG_COLORS).map(col => `
               <option value="${col}" ${item.selectedColor === col ? 'selected' : ''}>${col}</option>
             `).join('')}
           </select>
-          <div class="mini-dice-group" title="Rolled 12 on D12 for Free Colour Choice">
-            <span class="mini-d12">12</span>
-            <span class="free-choice-label">Die 12</span>
+          <div class="mini-dice-group" title="Rolled 8 on D8 for Free Colour Choice">
+            <span class="mini-d8">8</span>
+            <span class="free-choice-label">Die 8 (Free Choice)</span>
           </div>
         </div>
       `;
     }
 
+    // Dedicated Lightness and Saturation Sliders in card (omitted for Black and White)
+    const isAchromatic = (effectiveColor === 'Black' || effectiveColor === 'White');
+    if (isAchromatic) {
+      subControls += `
+        <div class="achromatic-badge">
+          <span>Fixed tone: Pure ${effectiveColor} (no lightness / saturation sliders)</span>
+        </div>
+      `;
+    } else {
+      subControls += `
+        <div class="draft-slider-row" style="display:flex; flex-direction:column; gap:0.25rem; margin-top:0.35rem; background:rgba(0,0,0,0.2); padding:0.4rem 0.5rem; border-radius:4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem;">
+            <span style="color:var(--text-muted);">Lightness:</span>
+            <strong id="draft-item-l-${item.id}" style="color:var(--text-main); font-weight:700;">${item.lightness !== undefined ? item.lightness : 50}%</strong>
+          </div>
+          <input type="range" min="0" max="100" value="${item.lightness !== undefined ? item.lightness : 50}" oninput="updateDraftLightness(${item.id}, this.value)" style="width:100%; height:14px; accent-color:var(--accent);">
+
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; margin-top:0.15rem;">
+            <span style="color:var(--text-muted);">Saturation:</span>
+            <strong id="draft-item-s-${item.id}" style="color:var(--text-main); font-weight:700;">${item.saturation !== undefined ? item.saturation : 85}%</strong>
+          </div>
+          <input type="range" min="0" max="100" value="${item.saturation !== undefined ? item.saturation : 85}" oninput="updateDraftSaturation(${item.id}, this.value)" style="width:100%; height:14px; accent-color:var(--accent);">
+        </div>
+      `;
+    }
+
+    const isCovered = Boolean(isOnCanvas && item.isOccluded);
+    card.className = `draft-card ${isOnCanvas ? (isCovered ? 'occluded' : 'on-canvas') : 'unused'}`;
+
+    let statusPillHtml = '';
+    if (!isOnCanvas) {
+      statusPillHtml = `<span class="draft-status-pill status-unused">⏳ In Tray (-5 pts)</span>`;
+    } else if (isCovered) {
+      statusPillHtml = `<span class="draft-status-pill status-occluded" title="This shape is completely covered by other layers or off-canvas and counts as unused!">⚠️ Hidden / Covered (-5 pts)</span>`;
+    } else {
+      statusPillHtml = `<span class="draft-status-pill status-on-canvas">✓ Visible on Flag</span>`;
+    }
+
+    const discardBtnHtml = (!item.isStartingRectangle && isOnCanvas) ? `
+      <button type="button" class="discard-btn" onclick="discardDraftItem(${item.id})" title="Remove from canvas (-5 pts penalty)">🗑️ Discard</button>
+    ` : '';
+
     card.innerHTML = `
       <div class="draft-card-header">
         <div class="draft-item-info">
-          <span class="draft-color-chip" style="background-color: ${hex};"></span>
+          <span id="draft-chip-${item.id}" class="draft-color-chip" style="background-color: ${hex};"></span>
           <span>#${index + 1}: ${shapeDisplayName} (${effectiveColor})</span>
         </div>
-        <span class="draft-status-pill ${isOnCanvas ? 'status-on-canvas' : 'status-unused'}">
-          ${isOnCanvas ? '✓ On Canvas' : '⏳ In Tray'}
-        </span>
+        <div style="display:flex; align-items:center; gap:0.25rem;">
+          ${discardBtnHtml}
+          ${statusPillHtml}
+        </div>
       </div>
 
       ${subControls}
@@ -772,11 +1201,16 @@ function renderDraftedTray() {
             </div>
           ` : ''}
           ${item.colorName === 'Free Choice' ? `
-            <div class="mini-dice-group" title="Rolled 12 on Colour Die: Free Colour Choice">
-              <span class="mini-d12">12</span>
-              <span>Die 12</span>
+            <div class="mini-dice-group" title="Rolled 8 on Colour Die: Free Colour Choice">
+              <span class="mini-d8">8</span>
+              <span>Die 8 Free</span>
             </div>
-          ` : ''}
+          ` : `
+            <div class="mini-dice-group" title="Rolled ${item.roll1d8} on 1D8: ${item.colorName}">
+              <span class="mini-d8">${item.roll1d8}</span>
+              <span>${item.colorName}</span>
+            </div>
+          `}
         </div>
         <button class="draft-action-btn ${isOnCanvas ? 'secondary' : 'primary'}" onclick="placeDraftItem(${item.id})">
           ${isOnCanvas ? '🎯 Select on Canvas' : '+ Place on Canvas'}
@@ -785,6 +1219,186 @@ function renderDraftedTray() {
     `;
 
     tray.appendChild(card);
+  });
+}
+
+function discardDraftItem(draftId) {
+  const item = draftedItems.find(d => d.id === draftId);
+  if (!item) return;
+  if (item.layerId) {
+    const idx = layers.findIndex(l => l.id === item.layerId);
+    if (idx >= 0) layers.splice(idx, 1);
+    if (selectedId === item.layerId) selectedId = null;
+    item.layerId = null;
+    item.isOccluded = false;
+    render();
+  }
+  renderDraftedTray();
+}
+
+function setupCustomCombobox(config) {
+  const { inputId, toggleBtnId, dropdownId, onSelect } = config;
+  const inputEl = document.getElementById(inputId);
+  const toggleBtn = document.getElementById(toggleBtnId);
+  const dropdownEl = document.getElementById(dropdownId);
+  if (!inputEl || !dropdownEl) return;
+
+  let highlightedIndex = -1;
+  let currentFilteredList = [];
+
+  function renderDropdown(items, query) {
+    currentFilteredList = items;
+    highlightedIndex = items.length > 0 ? 0 : -1;
+    dropdownEl.innerHTML = '';
+
+    if (!items.length) {
+      dropdownEl.innerHTML = `<div class="combobox-empty">No countries match "${query || ''}"</div>`;
+      dropdownEl.style.display = 'block';
+      return;
+    }
+
+    const qLower = (query || '').trim().toLowerCase();
+
+    items.forEach((country, idx) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = `combobox-item ${idx === 0 ? 'focused' : ''}`;
+      itemEl.setAttribute('role', 'option');
+
+      let nameHtml = country.name;
+      if (qLower) {
+        const mIdx = country.name.toLowerCase().indexOf(qLower);
+        if (mIdx >= 0) {
+          nameHtml = country.name.substring(0, mIdx) +
+            `<strong>${country.name.substring(mIdx, mIdx + qLower.length)}</strong>` +
+            country.name.substring(mIdx + qLower.length);
+        }
+      }
+
+      itemEl.innerHTML = `
+        <span class="combobox-item-name">${nameHtml}</span>
+      `;
+
+      const selectAction = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        inputEl.value = country.name;
+        closeDropdown();
+        onSelect(country.name);
+      };
+
+      itemEl.addEventListener('pointerdown', selectAction);
+      itemEl.addEventListener('mousedown', selectAction);
+      dropdownEl.appendChild(itemEl);
+    });
+
+    dropdownEl.style.display = 'block';
+  }
+
+  function filterAndShow(query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) {
+      renderDropdown(countryList, '');
+      return;
+    }
+
+    const prefixMatches = [];
+    const otherMatches = [];
+
+    // Also support 'st.' or 'st ' prefix matching for 'saint'
+    const normQ = q.replace(/^st\.?\s+/i, 'saint ');
+
+    countryList.forEach(c => {
+      const lower = c.name.toLowerCase();
+      const normName = lower.replace(/^saint\s+/i, 'st ');
+      if (lower.startsWith(q) || lower.startsWith(normQ)) {
+        prefixMatches.push(c);
+      } else if (lower.includes(q) || lower.includes(normQ) || normName.includes(q)) {
+        otherMatches.push(c);
+      }
+    });
+
+    renderDropdown([...prefixMatches, ...otherMatches], q);
+  }
+
+  function closeDropdown() {
+    dropdownEl.style.display = 'none';
+    highlightedIndex = -1;
+  }
+
+  function openDropdown() {
+    filterAndShow(inputEl.value);
+  }
+
+  if (toggleBtn) {
+    const handleToggle = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (dropdownEl.style.display === 'block') {
+        closeDropdown();
+      } else {
+        inputEl.focus();
+        openDropdown();
+      }
+    };
+    toggleBtn.addEventListener('pointerdown', handleToggle);
+    toggleBtn.addEventListener('click', handleToggle);
+  }
+
+  inputEl.addEventListener('input', () => {
+    filterAndShow(inputEl.value);
+    onSelect(inputEl.value);
+  });
+
+  inputEl.addEventListener('focus', () => {
+    openDropdown();
+  });
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (dropdownEl.style.display !== 'block') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        openDropdown();
+        e.preventDefault();
+      }
+      return;
+    }
+
+    const items = dropdownEl.querySelectorAll('.combobox-item');
+    if (!items.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlightedIndex = (highlightedIndex + 1) % items.length;
+      updateHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlightedIndex = (highlightedIndex - 1 + items.length) % items.length;
+      updateHighlight(items);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0 && currentFilteredList[highlightedIndex]) {
+        const sel = currentFilteredList[highlightedIndex];
+        inputEl.value = sel.name;
+        closeDropdown();
+        onSelect(sel.name);
+      }
+    } else if (e.key === 'Escape') {
+      closeDropdown();
+    }
+  });
+
+  function updateHighlight(items) {
+    items.forEach((el, idx) => {
+      el.classList.toggle('focused', idx === highlightedIndex);
+      if (idx === highlightedIndex) {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target))) {
+      closeDropdown();
+    }
   });
 }
 
@@ -798,100 +1412,39 @@ function initCountryLookup() {
     flagUrl: `https://flagcdn.com/w640/${c.code}.png`
   })).sort((a, b) => a.name.localeCompare(b.name));
 
-  dataList.innerHTML = '';
-  countryList.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.name;
-    dataList.appendChild(opt);
+  if (dataList) {
+    dataList.innerHTML = '';
+    countryList.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.name;
+      dataList.appendChild(opt);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.placeholder = "Type country name (e.g. France)...";
+    searchInput.disabled = false;
+  }
+
+  const randomBtn = document.getElementById('random-country-btn');
+  if (randomBtn) randomBtn.disabled = false;
+
+  // Initialize modern, mobile-friendly touch comboboxes
+  setupCustomCombobox({
+    inputId: 'country-search',
+    toggleBtnId: 'country-search-toggle',
+    dropdownId: 'country-search-dropdown',
+    onSelect: (val) => handleCountrySelect(val)
   });
 
-  searchInput.placeholder = "Type country name (e.g. France)...";
-  searchInput.disabled = false;
-  document.getElementById('random-country-btn').disabled = false;
+  setupCustomCombobox({
+    inputId: 'draft-country-select',
+    toggleBtnId: 'draft-country-toggle',
+    dropdownId: 'draft-country-dropdown',
+    onSelect: (val) => handleDraftCountrySelect(val)
+  });
 
   loadDailyChallenge();
-  loadEmblems();
-}
-
-async function loadEmblems() {
-  const selectEl = document.getElementById('emblem-select');
-  if (!selectEl) return;
-
-  try {
-    const response = await fetch('emblems.json');
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const emblemMap = await response.json();
-    const items = Object.entries(emblemMap)
-      .filter(([name, url]) => name && typeof url === 'string' && url)
-      .sort(([nameA], [nameB]) => nameA.localeCompare(nameB));
-
-    selectEl.innerHTML = '<option value="">-- Select National Emblem --</option>';
-    items.forEach(([name, url]) => {
-      const opt = document.createElement('option');
-      opt.value = url;
-      opt.textContent = name;
-      selectEl.appendChild(opt);
-    });
-
-    selectEl.disabled = false;
-    const addButton = document.getElementById('add-emblem-btn');
-    if (addButton) addButton.disabled = false;
-  } catch (err) {
-    console.error("Error loading emblems.json:", err);
-    selectEl.innerHTML = '<option value="">Unable to load emblems</option>';
-    selectEl.disabled = true;
-  }
-}
-
-async function addSelectedEmblem() {
-  const selectEl = document.getElementById('emblem-select');
-  const imgUrl = selectEl.value;
-  if (!imgUrl) return;
-
-  const addBtn = document.getElementById('add-emblem-btn');
-  if (addBtn) {
-    addBtn.textContent = 'Loading...';
-    addBtn.disabled = true;
-  }
-
-  try {
-    const response = await fetch(imgUrl);
-    const blob = await response.blob();
-
-    const reader = new FileReader();
-    reader.onloadend = function() {
-      const base64data = reader.result;
-      const newLayer = {
-        id: Date.now(),
-        shape: 'Image',
-        imageUrl: base64data,
-        color: 'Custom',
-        hex: '#ffffff',
-        x: 300,
-        y: 200,
-        scaleX: 0.6,
-        scaleY: 0.6,
-        rotation: 0
-      };
-      layers.push(newLayer);
-      selectedId = newLayer.id;
-      render();
-
-      if (addBtn) {
-        addBtn.textContent = '+ Add';
-        addBtn.disabled = false;
-      }
-    };
-    reader.readAsDataURL(blob);
-  } catch (err) {
-    console.error("Failed to load Wikimedia image:", err);
-    alert("Could not load the selected emblem image.");
-    if (addBtn) {
-      addBtn.textContent = '+ Add';
-      addBtn.disabled = false;
-    }
-  }
 }
 
 function handleCountrySelect(val) {
@@ -916,16 +1469,246 @@ function toggleShapeSubOptions() {
 }
 
 function selectColor(colorName) {
-  document.querySelectorAll('.color-swatch').forEach(swatch => {
-    const isSelected = swatch.dataset.color === colorName;
+  if (isHueLockedInDraft && currentGameMode === 'dice-draft') {
+    showHueLockNotice();
+    return;
+  }
+  const def = CORE_FLAG_COLORS[colorName];
+  if (def) {
+    currentPickerColor.name = colorName;
+    currentPickerColor.h = def.h;
+    currentPickerColor.s = def.s;
+    currentPickerColor.l = def.l;
+    currentPickerColor.hex = def.hex;
+  } else {
+    currentPickerColor.name = colorName;
+    const hsl = hexToHsl(COLOR_HEX_MAP[colorName] || '#ce1126');
+    currentPickerColor.h = hsl.h;
+    currentPickerColor.s = hsl.s;
+    currentPickerColor.l = hsl.l;
+    currentPickerColor.hex = COLOR_HEX_MAP[colorName] || '#ce1126';
+  }
+
+  updateColorPickerUI();
+  updateChargePreview();
+}
+
+function updateColorPickerUI() {
+  const hexBadge = document.getElementById('color-hex-badge');
+  const nameBadge = document.getElementById('color-name-badge');
+  const previewCircle = document.getElementById('color-preview-circle');
+  const lightnessSlider = document.getElementById('lightness-slider');
+  const lightnessDisplay = document.getElementById('lightness-val-display');
+  const saturationSlider = document.getElementById('saturation-slider');
+  const saturationDisplay = document.getElementById('saturation-val-display');
+
+  if (hexBadge) hexBadge.textContent = currentPickerColor.hex.toUpperCase();
+  if (nameBadge) nameBadge.textContent = currentPickerColor.name || 'Custom';
+  if (previewCircle) previewCircle.style.backgroundColor = currentPickerColor.hex;
+  if (lightnessSlider) lightnessSlider.value = currentPickerColor.l;
+  if (lightnessDisplay) lightnessDisplay.textContent = `${currentPickerColor.l}%`;
+  if (saturationSlider) saturationSlider.value = currentPickerColor.s;
+  if (saturationDisplay) saturationDisplay.textContent = `${currentPickerColor.s}%`;
+
+  // Highlight selected core swatch
+  document.querySelectorAll('#core-color-swatches .color-swatch').forEach(swatch => {
+    const isSelected = swatch.dataset.color === currentPickerColor.name;
     swatch.classList.toggle('selected', isSelected);
     swatch.setAttribute('aria-pressed', String(isSelected));
   });
+
+  updateWheelReticle();
+}
+
+function updateColorPickerLockState() {
+  const wheelContainer = document.getElementById('wheel-container');
+  const lockOverlay = document.getElementById('wheel-lock-overlay');
+  const lockNotice = document.getElementById('dice-draft-color-rule-notice');
+  const lockText = document.getElementById('wheel-lock-text');
+
+  if (isHueLockedInDraft && currentGameMode === 'dice-draft') {
+    if (wheelContainer) wheelContainer.classList.add('hue-locked');
+    if (lockOverlay) lockOverlay.style.display = 'flex';
+    if (lockNotice) lockNotice.style.display = 'block';
+    if (lockText) lockText.textContent = `Hue Locked by D8`;
+
+    document.querySelectorAll('#core-color-swatches .color-swatch').forEach(swatch => {
+      swatch.classList.add('locked-out');
+      swatch.setAttribute('aria-disabled', 'true');
+    });
+  } else {
+    if (wheelContainer) wheelContainer.classList.remove('hue-locked');
+    if (lockOverlay) lockOverlay.style.display = 'none';
+    if (lockNotice) lockNotice.style.display = 'none';
+
+    document.querySelectorAll('#core-color-swatches .color-swatch').forEach(swatch => {
+      swatch.classList.remove('locked-out');
+      swatch.removeAttribute('aria-disabled');
+    });
+  }
+}
+
+function showHueLockNotice() {
+  const notice = document.getElementById('dice-draft-color-rule-notice');
+  if (notice) {
+    notice.style.display = 'block';
+    notice.style.animation = 'none';
+    notice.offsetHeight; // trigger reflow
+    notice.style.animation = 'popBadge 0.3s ease';
+  }
+}
+
+function onMainLightnessInput(val) {
+  currentPickerColor.l = parseInt(val, 10);
+  currentPickerColor.hex = hslToHex(currentPickerColor.h, currentPickerColor.s, currentPickerColor.l);
+  updateColorPickerUI();
+  updateChargePreview();
+}
+
+function onMainSaturationInput(val) {
+  currentPickerColor.s = parseInt(val, 10);
+  currentPickerColor.hex = hslToHex(currentPickerColor.h, currentPickerColor.s, currentPickerColor.l);
+  updateColorPickerUI();
+  updateChargePreview();
+}
+
+function initColorWheel() {
+  const canvas = document.getElementById('color-wheel-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = cx - 3;
+
+  function drawWheel() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Conic gradient for 360 degree hue
+    const conic = ctx.createConicGradient(0, cx, cy);
+    conic.addColorStop(0/6, '#ff0000');
+    conic.addColorStop(1/6, '#ffff00');
+    conic.addColorStop(2/6, '#00ff00');
+    conic.addColorStop(3/6, '#00ffff');
+    conic.addColorStop(4/6, '#0000ff');
+    conic.addColorStop(5/6, '#ff00ff');
+    conic.addColorStop(6/6, '#ff0000');
+
+    ctx.fillStyle = conic;
+    ctx.fill();
+
+    // Radial gradient for saturation
+    const radial = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    radial.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    radial.addColorStop(0.08, 'rgba(255, 255, 255, 0.95)');
+    radial.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = radial;
+    ctx.fill();
+
+    ctx.restore();
+
+    // Border
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  drawWheel();
+
+  let isInteracting = false;
+
+  function handleWheelPointer(e) {
+    if (isHueLockedInDraft && currentGameMode === 'dice-draft') {
+      showHueLockNotice();
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+
+    const px = clientX - rect.left - (rect.width / 2);
+    const py = clientY - rect.top - (rect.height / 2);
+
+    let angleDeg = Math.round((Math.atan2(py, px) * 180) / Math.PI);
+    if (angleDeg < 0) angleDeg += 360;
+
+    const dist = Math.sqrt(px * px + py * py);
+    const maxRadius = rect.width / 2 - 3;
+    const sat = Math.min(100, Math.round((dist / maxRadius) * 100));
+
+    currentPickerColor.h = angleDeg;
+    currentPickerColor.s = sat;
+    currentPickerColor.hex = hslToHex(currentPickerColor.h, currentPickerColor.s, currentPickerColor.l);
+    currentPickerColor.name = "Custom Tone";
+
+    updateColorPickerUI();
+    updateChargePreview();
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    isInteracting = true;
+    handleWheelPointer(e);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isInteracting) handleWheelPointer(e);
+  });
+
+  window.addEventListener('mouseup', () => {
+    isInteracting = false;
+  });
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    isInteracting = true;
+    handleWheelPointer(e);
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+    if (isInteracting) {
+      e.preventDefault();
+      handleWheelPointer(e);
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    isInteracting = false;
+  });
+
+  updateWheelReticle();
+}
+
+function updateWheelReticle() {
+  const reticle = document.getElementById('wheel-reticle');
+  const canvas = document.getElementById('color-wheel-canvas');
+  if (!reticle || !canvas) return;
+
+  const w = canvas.offsetWidth || 130;
+  const cx = w / 2;
+  const cy = w / 2;
+  const maxR = cx - 3;
+
+  const satRatio = Math.max(0, Math.min(100, currentPickerColor.s)) / 100;
+  const angleRad = (currentPickerColor.h * Math.PI) / 180;
+  const dist = satRatio * maxR;
+
+  const rx = cx + dist * Math.cos(angleRad);
+  const ry = cy + dist * Math.sin(angleRad);
+
+  reticle.style.left = `${rx}px`;
+  reticle.style.top = `${ry}px`;
 }
 
 function getSelectedColor() {
-  const selectedSwatch = document.querySelector('.color-swatch.selected');
-  return selectedSwatch ? selectedSwatch.dataset.color : 'Red';
+  return currentPickerColor.name || 'Red';
 }
 
 function generateStarPointsSVG(numPoints, outerR = 100, innerR = 40) {
@@ -941,7 +1724,7 @@ function generateStarPointsSVG(numPoints, outerR = 100, innerR = 40) {
   return pts.join(' ');
 }
 
-function getShapeBaseDimensions(shape) {
+function getShapeBaseDimensions(shape, layer) {
   if (shape === 'Rectangle') return { w: 400, h: 200 };
   if (shape === 'Circle') return { w: 200, h: 200 };
   if (shape === 'Triangle') return { w: 240, h: 240 };
@@ -950,12 +1733,17 @@ function getShapeBaseDimensions(shape) {
   if (shape === 'Cross') return { w: 200, h: 200 };
   if (shape === 'Sun') return { w: 200, h: 200 };
   if (shape === 'Shield' || shape === 'Image') return { w: 180, h: 220 };
+  if (shape === 'Charge') {
+    return {
+      w: (layer && layer.baseWidth) || 150,
+      h: (layer && layer.baseHeight) || 150
+    };
+  }
   return { w: 200, h: 200 };
 }
 
 function addElement() {
   const shape = document.getElementById('shape-type').value;
-  const colorName = getSelectedColor();
   const starPoints = parseInt(document.getElementById('star-points').value, 10) || 5;
   const crossStyle = document.getElementById('cross-style').value;
   const crossThickness = parseInt(document.getElementById('cross-thickness').value, 10) || 35;
@@ -966,8 +1754,12 @@ function addElement() {
     crossStyle: crossStyle,
     crossThickness: crossThickness,
     pointsCount: starPoints,
-    color: colorName,
-    hex: COLOR_HEX_MAP[colorName] || "#ffffff",
+    color: currentPickerColor.name || 'Red',
+    hue: currentPickerColor.h,
+    saturation: currentPickerColor.s,
+    lightness: currentPickerColor.l,
+    hex: currentPickerColor.hex || '#ce1126',
+    isHueLocked: false,
     x: 300,
     y: 200,
     scaleX: shape === 'Rectangle' ? 1.0 : 0.6,
@@ -980,40 +1772,104 @@ function addElement() {
   render();
 }
 
-function addSunElement() {
+// -------------------------------------------------------------
+// Flag Charges & Coats of Arms Handlers
+// -------------------------------------------------------------
+function initChargeSelector() {
+  filterChargesByCategory('ALL');
+}
+
+function filterChargesByCategory(category) {
+  const select = document.getElementById('emblem-select');
+  if (!select || typeof FLAG_CHARGES === 'undefined') return;
+
+  const filtered = category === 'ALL' 
+    ? FLAG_CHARGES 
+    : FLAG_CHARGES.filter(c => c.category === category);
+
+  select.innerHTML = filtered.map(c => `
+    <option value="${c.id}">${c.name} (${c.country})</option>
+  `).join('');
+
+  if (filtered.length > 0) {
+    onChargeSelectChange(filtered[0].id);
+  } else {
+    updateChargePreview(null);
+  }
+}
+
+function onChargeSelectChange(chargeId) {
+  updateChargePreview(chargeId);
+}
+
+function updateChargePreview(chargeId) {
+  const previewBox = document.getElementById('charge-live-preview');
+  if (!previewBox) return;
+
+  if (!chargeId) {
+    const select = document.getElementById('emblem-select');
+    chargeId = select && select.value ? select.value : ((typeof FLAG_CHARGES !== 'undefined' && FLAG_CHARGES[0]) ? FLAG_CHARGES[0].id : null);
+  }
+
+  const charge = typeof getChargeById === 'function' ? getChargeById(chargeId) : null;
+  if (!charge) {
+    previewBox.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">None</span>';
+    return;
+  }
+
+  const activeColor = getSelectedColor();
+  const hex = currentPickerColor.hex || COLOR_HEX_MAP[activeColor] || charge.defaultColor;
+
+  previewBox.innerHTML = `
+    <svg viewBox="${charge.viewBox}" style="color: ${hex}; fill: ${hex};">
+      ${charge.svgContent}
+    </svg>
+  `;
+}
+
+function addSelectedEmblem() {
+  const select = document.getElementById('emblem-select');
+  if (!select || !select.value) return;
+  addChargeById(select.value);
+}
+
+function addChargeById(chargeId) {
+  const charge = typeof getChargeById === 'function' ? getChargeById(chargeId) : null;
+  if (!charge) return;
+
   const colorName = getSelectedColor();
+  const hex = currentPickerColor.hex || COLOR_HEX_MAP[colorName] || charge.defaultColor;
+
   const newLayer = {
     id: Date.now(),
-    shape: 'Sun',
+    shape: 'Charge',
+    chargeId: charge.id,
+    chargeName: charge.name,
+    baseWidth: charge.defaultWidth || 150,
+    baseHeight: charge.defaultHeight || 150,
     color: colorName,
-    hex: COLOR_HEX_MAP[colorName] || "#fcd116",
+    hue: currentPickerColor.h,
+    saturation: currentPickerColor.s,
+    lightness: currentPickerColor.l,
+    hex: hex,
     x: 300,
     y: 200,
-    scaleX: 0.6,
-    scaleY: 0.6,
+    scaleX: 0.7,
+    scaleY: 0.7,
     rotation: 0
   };
+
   layers.push(newLayer);
   selectedId = newLayer.id;
   render();
 }
 
+function addSunElement() {
+  addChargeById('sol_de_mayo');
+}
+
 function addCoatOfArmsPreset() {
-  const colorName = getSelectedColor();
-  const newLayer = {
-    id: Date.now(),
-    shape: 'Shield',
-    color: colorName,
-    hex: COLOR_HEX_MAP[colorName] || "#ce1126",
-    x: 300,
-    y: 200,
-    scaleX: 0.6,
-    scaleY: 0.6,
-    rotation: 0
-  };
-  layers.push(newLayer);
-  selectedId = newLayer.id;
-  render();
+  addChargeById('spanish_shield');
 }
 
 function selectLayer(id) {
@@ -1023,31 +1879,11 @@ function selectLayer(id) {
 
 function duplicateLayer(id, e) {
   if (e) e.stopPropagation();
-  const sourceLayer = layers.find(l => l.id === id);
-  if (!sourceLayer) return;
-
-  const cloned = JSON.parse(JSON.stringify(sourceLayer));
-  cloned.id = Date.now() + Math.floor(Math.random() * 1000);
-  // Slight offset so the duplicate is immediately noticeable and draggable
-  cloned.x = Math.min(570, (cloned.x || 300) + 15);
-  cloned.y = Math.min(370, (cloned.y || 200) + 15);
-  delete cloned.draftItemId; // Disconnect draft link for free editing
-
-  const idx = layers.findIndex(l => l.id === id);
-  if (idx >= 0) {
-    layers.splice(idx + 1, 0, cloned);
-  } else {
-    layers.push(cloned);
-  }
-
-  selectedId = cloned.id;
-  render();
+  // Copy / duplicate feature removed per design specification
 }
 
 function duplicateSelectedLayer() {
-  if (selectedId !== null) {
-    duplicateLayer(selectedId);
-  }
+  // Copy / duplicate feature removed per design specification
 }
 
 function deleteLayer(id, e) {
@@ -1055,7 +1891,10 @@ function deleteLayer(id, e) {
   const deletedLayer = layers.find(l => l.id === id);
   if (deletedLayer && deletedLayer.draftItemId) {
     const draftItem = draftedItems.find(d => d.id === deletedLayer.draftItemId);
-    if (draftItem) draftItem.layerId = null;
+    if (draftItem) {
+      draftItem.layerId = null;
+      draftItem.isOccluded = false;
+    }
   }
 
   layers = layers.filter(l => l.id !== id);
@@ -1078,12 +1917,148 @@ function moveLayer(id, dir, e) {
 }
 
 function clearCanvas() {
-  draftedItems.forEach(item => { item.layerId = null; });
+  draftedItems.forEach(item => { item.layerId = null; item.isOccluded = false; });
   layers = [];
   selectedId = null;
   activeGuides = [];
   render();
   renderDraftedTray();
+}
+
+// -------------------------------------------------------------
+// Layer Visibility & Occlusion Detection Engine
+// -------------------------------------------------------------
+function computeLayerVisibilities(callback) {
+  if (!layers.length) {
+    if (callback) callback({});
+    return;
+  }
+
+  try {
+    const clone = svg.cloneNode(true);
+    const guides = clone.querySelector('#guide-group');
+    if (guides) guides.remove();
+    const handles = clone.querySelector('#handle-group');
+    if (handles) handles.remove();
+
+    const layerGroups = clone.querySelectorAll('#layer-group > g');
+    if (!layerGroups.length) {
+      if (callback) callback({});
+      return;
+    }
+
+    const indexToLayerId = {};
+    layerGroups.forEach((g, idx) => {
+      const lid = parseInt(g.getAttribute('data-id'), 10);
+      const colorIndex = idx + 1;
+      indexToLayerId[colorIndex] = lid;
+
+      const hexColor = '#' + colorIndex.toString(16).padStart(6, '0');
+
+      const allEls = g.querySelectorAll('*');
+      allEls.forEach(el => {
+        el.removeAttribute('fill-opacity');
+        el.removeAttribute('stroke-opacity');
+        el.removeAttribute('opacity');
+        el.style.opacity = '1';
+        el.style.fillOpacity = '1';
+        el.style.strokeOpacity = '1';
+        if (el.hasAttribute('fill') && el.getAttribute('fill') !== 'none') {
+          el.setAttribute('fill', hexColor);
+        }
+        if (el.hasAttribute('stroke') && el.getAttribute('stroke') !== 'none') {
+          el.setAttribute('stroke', hexColor);
+        }
+        const tag = el.tagName.toLowerCase();
+        if (['path', 'rect', 'polygon', 'circle', 'ellipse', 'line'].includes(tag)) {
+          el.style.fill = hexColor;
+        }
+      });
+      g.style.opacity = '1';
+    });
+
+    const svgString = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const URLObj = window.URL || window.webkitURL || window;
+    const blobUrl = URLObj.createObjectURL(blob);
+
+    const testImg = new Image();
+    testImg.onload = function() {
+      const cvs = document.createElement('canvas');
+      cvs.width = 300;
+      cvs.height = 200;
+      const ctx = cvs.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 300, 200);
+      ctx.drawImage(testImg, 0, 0, 300, 200);
+      URLObj.revokeObjectURL(blobUrl);
+
+      const imgData = ctx.getImageData(0, 0, 300, 200).data;
+      const pixelCounts = {};
+      for (let i = 0; i < imgData.length; i += 4) {
+        const r = imgData[i];
+        const g = imgData[i + 1];
+        const b = imgData[i + 2];
+        const colorVal = (r << 16) | (g << 8) | b;
+        if (colorVal > 0) {
+          pixelCounts[colorVal] = (pixelCounts[colorVal] || 0) + 1;
+        }
+      }
+
+      const results = {};
+      Object.keys(indexToLayerId).forEach(cIdx => {
+        const lid = indexToLayerId[cIdx];
+        const count = pixelCounts[cIdx] || 0;
+        // Total flag area is 300x200 = 60,000 pixels.
+        // If a layer has fewer than 25 visible pixels (<0.04%), it is considered occluded/hidden.
+        results[lid] = {
+          visiblePixels: count,
+          isOccluded: count < 25
+        };
+      });
+
+      if (callback) callback(results);
+    };
+
+    testImg.onerror = function() {
+      URLObj.revokeObjectURL(blobUrl);
+      const fallback = {};
+      layers.forEach(l => { fallback[l.id] = { visiblePixels: 100, isOccluded: false }; });
+      if (callback) callback(fallback);
+    };
+    testImg.src = blobUrl;
+  } catch (err) {
+    const fallback = {};
+    layers.forEach(l => { fallback[l.id] = { visiblePixels: 100, isOccluded: false }; });
+    if (callback) callback(fallback);
+  }
+}
+
+let occlusionDebounceTimer = null;
+function checkAndRefreshOcclusion() {
+  if (currentGameMode !== 'dice-draft' || !draftedItems.length) return;
+  if (occlusionDebounceTimer) clearTimeout(occlusionDebounceTimer);
+  occlusionDebounceTimer = setTimeout(() => {
+    computeLayerVisibilities(visMap => {
+      let anyChanged = false;
+      draftedItems.forEach(item => {
+        if (item.layerId) {
+          const vis = visMap[item.layerId];
+          const newOccluded = vis ? vis.isOccluded : false;
+          if (item.isOccluded !== newOccluded) {
+            item.isOccluded = newOccluded;
+            anyChanged = true;
+          }
+        } else {
+          item.isOccluded = false;
+        }
+      });
+      if (anyChanged) {
+        renderDraftedTray();
+        renderLayerList();
+      }
+    });
+  }, 100);
 }
 
 function render() {
@@ -1092,6 +2067,7 @@ function render() {
   renderHandles();
   renderLayerList();
   renderTransformInspector();
+  checkAndRefreshOcclusion();
 }
 
 function renderLayers() {
@@ -1100,6 +2076,7 @@ function renderLayers() {
 
   layers.forEach(layer => {
     const elemGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    elemGroup.setAttribute('data-id', layer.id);
     const sx = layer.scaleX !== undefined ? layer.scaleX : layer.scale;
     const sy = layer.scaleY !== undefined ? layer.scaleY : layer.scale;
     
@@ -1195,6 +2172,22 @@ function renderLayers() {
       shield.setAttribute('stroke', '#ffffff');
       shield.setAttribute('stroke-width', '4');
       elemGroup.appendChild(shield);
+    } else if (layer.shape === 'Charge') {
+      const chargeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      chargeG.setAttribute('color', layer.hex);
+      chargeG.setAttribute('fill', layer.hex);
+
+      const charge = typeof getChargeById === 'function' ? getChargeById(layer.chargeId) : null;
+      const w = layer.baseWidth || (charge && charge.defaultWidth) || 150;
+      const h = layer.baseHeight || (charge && charge.defaultHeight) || 150;
+
+      if (charge) {
+        const innerG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        innerG.setAttribute('transform', `translate(${-w / 2}, ${-h / 2}) scale(${w / 100}, ${h / 100})`);
+        innerG.innerHTML = charge.svgContent;
+        chargeG.appendChild(innerG);
+      }
+      elemGroup.appendChild(chargeG);
     } else if (layer.shape === 'Image') {
       const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
       img.setAttribute('href', layer.imageUrl);
@@ -1234,7 +2227,7 @@ function renderHandles() {
   const activeLayer = layers.find(l => l.id === selectedId);
   if (!activeLayer) return;
 
-  const base = getShapeBaseDimensions(activeLayer.shape);
+  const base = getShapeBaseDimensions(activeLayer.shape, activeLayer);
   const sx = activeLayer.scaleX !== undefined ? activeLayer.scaleX : activeLayer.scale;
   const sy = activeLayer.scaleY !== undefined ? activeLayer.scaleY : activeLayer.scale;
   
@@ -1368,14 +2361,19 @@ function renderLayerList() {
       const crossLabels = { regular: 'Regular cross', saltaire: 'Saltaire', nordic: 'Nordic cross' };
       labelName = crossLabels[layer.crossStyle] || 'Regular cross';
     }
+    if (layer.shape === 'Charge') {
+      labelName = layer.chargeName || 'Flag Charge';
+    }
+
+    const draftItem = draftedItems.find(d => d.layerId === layer.id);
+    const isOccludedBadge = (draftItem && draftItem.isOccluded) ? '<span style="color:#f87171; font-size:0.75rem; margin-left:4px; font-weight:700;" title="This shape is covered by other layers or off-canvas and will count as unused!">⚠️ (Hidden)</span>' : '';
 
     item.innerHTML = `
       <div style="display:flex; align-items:center;">
         <span class="layer-preview" style="background-color:${layer.hex};"></span>
-        <span style="font-size:0.85rem;">${labelName} (${Math.round(layer.rotation)}°)</span>
+        <span style="font-size:0.85rem;">${labelName} (${Math.round(layer.rotation)}°)${isOccludedBadge}</span>
       </div>
       <div class="layer-controls">
-        <button onclick="duplicateLayer(${layer.id}, event)" title="Duplicate layer">⧉</button>
         <button onclick="moveLayer(${layer.id}, -1, event)" ${idx === 0 ? 'disabled' : ''} title="Move layer up">▲</button>
         <button onclick="moveLayer(${layer.id}, 1, event)" ${idx === layers.length - 1 ? 'disabled' : ''} title="Move layer down">▼</button>
         <button class="danger" onclick="deleteLayer(${layer.id}, event)" title="Delete layer">✕</button>
@@ -1422,7 +2420,7 @@ function renderTransformInspector() {
   const nameEl = document.getElementById('trans-shape-name');
   const badgeEl = document.getElementById('trans-layer-badge');
   if (dotEl) dotEl.style.backgroundColor = activeLayer.hex;
-  if (nameEl) nameEl.textContent = activeLayer.shape;
+  if (nameEl) nameEl.textContent = activeLayer.shape === 'Charge' ? (activeLayer.chargeName || 'Flag Charge') : activeLayer.shape;
   if (badgeEl) {
     const layerIdx = layers.indexOf(activeLayer) + 1;
     badgeEl.textContent = `Layer ${layerIdx} of ${layers.length}`;
@@ -1493,16 +2491,87 @@ function renderTransformInspector() {
 
 function renderRecolorPalette(activeLayer) {
   const container = document.getElementById('recolor-swatches');
+  const hexBadge = document.getElementById('inspector-color-hex');
+  const lightnessSlider = document.getElementById('inspector-lightness-slider');
+  const lightnessDisplay = document.getElementById('inspector-lightness-display');
+  const saturationSlider = document.getElementById('inspector-saturation-slider');
+  const saturationDisplay = document.getElementById('inspector-saturation-display');
+  const hueLockMsg = document.getElementById('inspector-hue-lock-msg');
+
+  if (!activeLayer) return;
+
+  if (activeLayer.hue === undefined || activeLayer.lightness === undefined || activeLayer.saturation === undefined) {
+    const hsl = hexToHsl(activeLayer.hex || '#ce1126');
+    activeLayer.hue = hsl.h;
+    activeLayer.saturation = hsl.s;
+    activeLayer.lightness = hsl.l;
+  }
+
+  const isAchromatic = (activeLayer.color === 'Black' || activeLayer.color === 'White');
+  const slidersContainer = document.getElementById('inspector-color-sliders-container');
+  const achromaticNotice = document.getElementById('inspector-achromatic-notice');
+
+  if (slidersContainer) slidersContainer.style.display = isAchromatic ? 'none' : 'block';
+  if (achromaticNotice) {
+    achromaticNotice.style.display = isAchromatic ? 'block' : 'none';
+    if (isAchromatic) {
+      achromaticNotice.textContent = `Pure ${activeLayer.color}: Fixed tone (lightness & saturation adjustments disabled).`;
+    }
+  }
+
+  if (hexBadge) hexBadge.textContent = (activeLayer.hex || '#CE1126').toUpperCase();
+  if (lightnessSlider) {
+    lightnessSlider.value = activeLayer.lightness;
+    lightnessSlider.disabled = isAchromatic;
+  }
+  if (lightnessDisplay) lightnessDisplay.textContent = `${activeLayer.lightness}%`;
+  if (saturationSlider) {
+    saturationSlider.value = activeLayer.saturation;
+    saturationSlider.disabled = isAchromatic;
+  }
+  if (saturationDisplay) saturationDisplay.textContent = `${activeLayer.saturation}%`;
+
+  const isLocked = Boolean(activeLayer.draftItemId && activeLayer.isHueLocked);
+  if (hueLockMsg) {
+    hueLockMsg.style.display = isLocked ? 'block' : 'none';
+    if (isLocked) {
+      if (isAchromatic) {
+        hueLockMsg.innerHTML = `<span>🔒 <em>Hue locked to <strong>${activeLayer.color}</strong> by D8 roll (Fixed pure tone).</em></span>`;
+      } else {
+        hueLockMsg.innerHTML = `<span>🔒 <em>Hue locked to <strong>${activeLayer.color}</strong> by D8 roll. Adjust Lightness & Saturation sliders!</em></span>`;
+      }
+    }
+  }
+
   if (!container) return;
   container.innerHTML = '';
 
-  Object.entries(COLOR_HEX_MAP).forEach(([colorName, hexVal]) => {
+  Object.keys(CORE_FLAG_COLORS).forEach(colorName => {
+    const def = CORE_FLAG_COLORS[colorName];
     const swatch = document.createElement('button');
     swatch.type = 'button';
     swatch.className = `color-swatch ${activeLayer.color === colorName ? 'selected' : ''}`;
-    swatch.style.backgroundColor = hexVal;
+    swatch.dataset.color = colorName;
     swatch.title = colorName;
-    swatch.onclick = () => recolorSelectedLayer(colorName, hexVal);
+    swatch.style.backgroundColor = def.hex;
+
+    if (isLocked && colorName !== activeLayer.color) {
+      swatch.classList.add('locked-out');
+      swatch.title = `${colorName} (Locked by D8 roll)`;
+      swatch.onclick = () => {
+        alert(`In Dice Draft mode, this element's hue is locked to ${activeLayer.color}. You can adjust its Lightness and Saturation sliders!`);
+      };
+    } else {
+      swatch.onclick = () => {
+        activeLayer.color = colorName;
+        activeLayer.hue = def.h;
+        activeLayer.saturation = def.s;
+        activeLayer.lightness = def.l;
+        activeLayer.hex = def.hex;
+        renderRecolorPalette(activeLayer);
+        render();
+      };
+    }
     container.appendChild(swatch);
   });
 }
@@ -1510,8 +2579,87 @@ function renderRecolorPalette(activeLayer) {
 function recolorSelectedLayer(colorName, hexVal) {
   const activeLayer = layers.find(l => l.id === selectedId);
   if (!activeLayer) return;
+  if (activeLayer.draftItemId && activeLayer.isHueLocked && activeLayer.color !== colorName) {
+    alert(`In Dice Draft mode, this element's hue is locked to ${activeLayer.color}. You can adjust its Lightness and Saturation!`);
+    return;
+  }
+  const def = CORE_FLAG_COLORS[colorName] || { hex: hexVal || '#ce1126', h: 353, s: 85, l: 47 };
   activeLayer.color = colorName;
-  activeLayer.hex = hexVal || COLOR_HEX_MAP[colorName] || '#ce1126';
+  activeLayer.hue = def.h;
+  activeLayer.saturation = def.s;
+  activeLayer.lightness = def.l;
+  activeLayer.hex = def.hex;
+  render();
+  renderRecolorPalette(activeLayer);
+}
+
+function onInspectorLightnessInput(val) {
+  const activeLayer = layers.find(l => l.id === selectedId);
+  if (!activeLayer) return;
+  const num = parseInt(val, 10);
+  activeLayer.lightness = num;
+  if (activeLayer.hue === undefined) {
+    const hsl = hexToHsl(activeLayer.hex || '#ce1126');
+    activeLayer.hue = hsl.h;
+    activeLayer.saturation = hsl.s;
+  }
+  activeLayer.hex = hslToHex(activeLayer.hue, activeLayer.saturation !== undefined ? activeLayer.saturation : 85, num);
+
+  const display = document.getElementById('inspector-lightness-display');
+  const hexBadge = document.getElementById('inspector-color-hex');
+  if (display) display.textContent = `${num}%`;
+  if (hexBadge) hexBadge.textContent = activeLayer.hex.toUpperCase();
+
+  // Also sync draft tray if this came from draft item
+  if (activeLayer.draftItemId) {
+    const draftItem = draftedItems.find(d => d.id === activeLayer.draftItemId);
+    if (draftItem) {
+      draftItem.lightness = num;
+      draftItem.hex = activeLayer.hex;
+      const chip = document.getElementById(`draft-chip-${draftItem.id}`);
+      if (chip) chip.style.backgroundColor = draftItem.hex;
+      const slider = document.getElementById(`draft-light-${draftItem.id}`);
+      if (slider) slider.value = num;
+      const valDisp = document.getElementById(`draft-light-val-${draftItem.id}`);
+      if (valDisp) valDisp.textContent = `${num}%`;
+    }
+  }
+
+  render();
+}
+
+function onInspectorSaturationInput(val) {
+  const activeLayer = layers.find(l => l.id === selectedId);
+  if (!activeLayer) return;
+  const num = parseInt(val, 10);
+  activeLayer.saturation = num;
+  if (activeLayer.hue === undefined) {
+    const hsl = hexToHsl(activeLayer.hex || '#ce1126');
+    activeLayer.hue = hsl.h;
+    activeLayer.lightness = hsl.l;
+  }
+  activeLayer.hex = hslToHex(activeLayer.hue, num, activeLayer.lightness !== undefined ? activeLayer.lightness : 50);
+
+  const display = document.getElementById('inspector-saturation-display');
+  const hexBadge = document.getElementById('inspector-color-hex');
+  if (display) display.textContent = `${num}%`;
+  if (hexBadge) hexBadge.textContent = activeLayer.hex.toUpperCase();
+
+  // Also sync draft tray if this came from draft item
+  if (activeLayer.draftItemId) {
+    const draftItem = draftedItems.find(d => d.id === activeLayer.draftItemId);
+    if (draftItem) {
+      draftItem.saturation = num;
+      draftItem.hex = activeLayer.hex;
+      const chip = document.getElementById(`draft-chip-${draftItem.id}`);
+      if (chip) chip.style.backgroundColor = draftItem.hex;
+      const slider = document.getElementById(`draft-sat-${draftItem.id}`);
+      if (slider) slider.value = num;
+      const valDisp = document.getElementById(`draft-sat-val-${draftItem.id}`);
+      if (valDisp) valDisp.textContent = `${num}%`;
+    }
+  }
+
   render();
 }
 
@@ -1728,7 +2876,7 @@ function handlePointerMove(e) {
     let newX = layerStart.x + (pt.x - dragStart.x);
     let newY = layerStart.y + (pt.y - dragStart.y);
 
-    const base = getShapeBaseDimensions(activeLayer.shape);
+    const base = getShapeBaseDimensions(activeLayer.shape, activeLayer);
     const hw = (base.w / 2) * activeLayer.scaleX;
     const hh = (base.h / 2) * activeLayer.scaleY;
 
@@ -1798,7 +2946,7 @@ function handlePointerMove(e) {
     const localX = dxGlobal * Math.cos(inverseRotation) - dyGlobal * Math.sin(inverseRotation);
     const localY = dxGlobal * Math.sin(inverseRotation) + dyGlobal * Math.cos(inverseRotation);
 
-    const base = getShapeBaseDimensions(activeLayer.shape);
+    const base = getShapeBaseDimensions(activeLayer.shape, activeLayer);
     const startHalfWidth = (base.w / 2) * layerStart.scaleX;
     const startHalfHeight = (base.h / 2) * layerStart.scaleY;
     const isEast = ['e', 'ne', 'se'].includes(dragMode);
@@ -2034,19 +3182,37 @@ function evaluateSubmission() {
         const comp = getCountryComplexity(currentTarget.code, currentTarget.name);
         maxPoints = comp.points;
         const accuracyPoints = Math.round((similarityPct / 100) * maxPoints);
-        const unusedElements = draftedItems.filter(item => !item.layerId || !layers.some(l => l.id === item.layerId));
-        const unusedCount = unusedElements.length;
-        const penaltyPerUnused = 5;
-        const totalPenalty = unusedCount * penaltyPerUnused;
-        earnedPoints = Math.max(0, accuracyPoints - totalPenalty);
 
-        draftDetails = {
-          complexity: comp,
-          accuracyPoints: accuracyPoints,
-          unusedCount: unusedCount,
-          totalPenalty: totalPenalty,
-          totalDrafted: draftedItems.length
-        };
+        // Run exact pixel occlusion test so hidden layers cannot bypass penalty
+        computeLayerVisibilities(visMap => {
+          const unusedElements = draftedItems.filter(item => !item.layerId || !layers.some(l => l.id === item.layerId));
+          const occludedElements = draftedItems.filter(item => {
+            if (!item.layerId || !layers.some(l => l.id === item.layerId)) return false;
+            const vis = visMap[item.layerId];
+            return vis ? vis.isOccluded : false;
+          });
+
+          const unusedCount = unusedElements.length;
+          const occludedCount = occludedElements.length;
+          const penaltyPerItem = 5;
+          const totalPenalty = (unusedCount + occludedCount) * penaltyPerItem;
+          earnedPoints = Math.max(0, accuracyPoints - totalPenalty);
+
+          draftDetails = {
+            complexity: comp,
+            accuracyPoints: accuracyPoints,
+            unusedCount: unusedCount,
+            occludedCount: occludedCount,
+            totalPenalty: totalPenalty,
+            totalDrafted: draftedItems.length
+          };
+
+          submitBtn.textContent = 'Submit & Score';
+          submitBtn.disabled = false;
+
+          showComparisonModal(canvasUser, canvasOfficial, similarityPct, earnedPoints, maxPoints, draftDetails);
+        });
+        return;
       }
 
       submitBtn.textContent = 'Submit & Score';
@@ -2072,6 +3238,32 @@ function showComparisonModal(userCanvas, officialCanvas, scorePct, points, maxPo
   let breakdownHtml = `<p>You earned <strong>${points} / ${maxPoints}</strong> points.</p>`;
 
   if (draftDetails) {
+    let penaltyItemsHtml = '';
+    if (draftDetails.unusedCount > 0) {
+      penaltyItemsHtml += `
+        <div class="breakdown-row">
+          <span>📦 Unused Elements in Tray (${draftDetails.unusedCount}):</span>
+          <span style="color:var(--danger, #ce1126); font-weight:700;">-${draftDetails.unusedCount * 5} pts</span>
+        </div>
+      `;
+    }
+    if (draftDetails.occludedCount > 0) {
+      penaltyItemsHtml += `
+        <div class="breakdown-row">
+          <span>⚠️ Hidden / Covered Elements (${draftDetails.occludedCount}):</span>
+          <span style="color:var(--danger, #ce1126); font-weight:700;">-${draftDetails.occludedCount * 5} pts</span>
+        </div>
+      `;
+    }
+    if (draftDetails.unusedCount === 0 && draftDetails.occludedCount === 0) {
+      penaltyItemsHtml += `
+        <div class="breakdown-row">
+          <span>✨ All Drafted Elements Visibly Used:</span>
+          <span style="color:#22c55e; font-weight:700;">No Penalties!</span>
+        </div>
+      `;
+    }
+
     breakdownHtml = `
       <div class="score-breakdown-card">
         <div class="breakdown-row">
@@ -2082,14 +3274,16 @@ function showComparisonModal(userCanvas, officialCanvas, scorePct, points, maxPo
           <span>📐 Visual Accuracy (${scorePct}%):</span>
           <span style="color:var(--primary); font-weight:700;">+${draftDetails.accuracyPoints} pts</span>
         </div>
-        <div class="breakdown-row">
-          <span>📦 Unused Drafted Elements (${draftDetails.unusedCount}):</span>
-          <span style="color:var(--danger, #ce1126); font-weight:700;">-${draftDetails.totalPenalty} pts</span>
-        </div>
+        ${penaltyItemsHtml}
         <div class="breakdown-row total-row">
           <span>🏆 Total Final Score:</span>
           <strong style="font-size:1.15rem; color:var(--text-main);">${points} / ${maxPoints} pts</strong>
         </div>
+        ${draftDetails.occludedCount > 0 ? `
+          <div style="font-size:0.75rem; color:#f87171; margin-top:0.4rem; padding:0.4rem; background:rgba(239, 68, 68, 0.1); border-radius:4px; border-left:3px solid #ef4444; line-height:1.35;">
+            ⚠️ <strong>Hidden Shape Penalty:</strong> ${draftDetails.occludedCount} element(s) were placed on the canvas but completely hidden behind other layers. In Dice Draft mode, drafted elements must be visibly incorporated into your design to avoid the 5-point penalty!
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -2125,8 +3319,10 @@ function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
 }
 
-document.querySelectorAll('.color-swatch').forEach(swatch => {
+document.querySelectorAll('#core-color-swatches .color-swatch').forEach(swatch => {
   swatch.addEventListener('click', () => selectColor(swatch.dataset.color));
 });
+initColorWheel();
 selectColor('Red');
 initCountryLookup();
+initChargeSelector();

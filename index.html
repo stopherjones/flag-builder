@@ -22,15 +22,20 @@
       </div>
       <div id="standard-target-options" class="target-options">
         <label for="country-search"><strong>Country Picker:</strong></label>
-        <input
-          type="text"
-          id="country-search"
-          list="country-list"
-          placeholder="Search country..."
-          oninput="handleCountrySelect(this.value)"
-          onfocus="this.select()"
-          disabled
-        >
+        <div class="combobox-wrapper" id="standard-combobox-wrapper">
+          <input
+            type="text"
+            id="country-search"
+            placeholder="Search country..."
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            disabled
+          >
+          <button type="button" class="combobox-toggle-btn" id="country-search-toggle" aria-label="Toggle country list" title="Browse countries">▾</button>
+          <div class="combobox-dropdown" id="country-search-dropdown" style="display: none;"></div>
+        </div>
         <datalist id="country-list"></datalist>
         <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">Loading...</span>
       </div>
@@ -65,7 +70,6 @@
               <span id="trans-layer-badge" class="trans-layer-badge">Layer 1</span>
             </div>
             <div class="transform-actions">
-              <button type="button" class="small-btn" onclick="duplicateSelectedLayer()" title="Duplicate shape">⧉ Copy</button>
               <button type="button" class="small-btn" onclick="centerSelectedShape()" title="Center on flag">🎯 Center</button>
               <button type="button" class="small-btn danger" onclick="deleteSelectedLayer()" title="Delete shape">✕ Del</button>
             </div>
@@ -187,7 +191,38 @@
               <button type="button" class="preset-pill" onclick="alignShape('bottom')">⬇ Bottom</button>
             </div>
             <div class="selected-color-palette" style="margin-top: 0.4rem;">
-              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Recolour Shape:</span>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.25rem;">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Adjust Shade & Colour:</span>
+                <span id="inspector-color-hex" class="color-hex-badge" style="font-size:0.7rem;">#CE1126</span>
+              </div>
+
+              <!-- Inspector Lightness and Saturation Sliders -->
+              <div class="inspector-color-sliders" id="inspector-color-sliders-container">
+                <div class="slider-item" style="margin-bottom:0.25rem;">
+                  <div class="slider-label-row">
+                    <label for="inspector-lightness-slider" style="font-size:0.72rem;">Lightness</label>
+                    <strong id="inspector-lightness-display" style="font-size:0.72rem;">50%</strong>
+                  </div>
+                  <input type="range" id="inspector-lightness-slider" min="0" max="100" step="1" value="50" oninput="onInspectorLightnessInput(this.value)">
+                </div>
+
+                <div class="slider-item" style="margin-bottom:0.35rem;">
+                  <div class="slider-label-row">
+                    <label for="inspector-saturation-slider" style="font-size:0.72rem;">Saturation</label>
+                    <strong id="inspector-saturation-display" style="font-size:0.72rem;">85%</strong>
+                  </div>
+                  <input type="range" id="inspector-saturation-slider" min="0" max="100" step="1" value="85" oninput="onInspectorSaturationInput(this.value)">
+                </div>
+              </div>
+
+              <div id="inspector-achromatic-notice" class="achromatic-badge" style="display: none; margin-bottom: 0.35rem;">
+                <span>Pure Black / White: Fixed tone (no lightness / saturation adjustments).</span>
+              </div>
+
+              <div id="inspector-hue-lock-msg" class="dice-draft-color-rule-notice" style="display: none; margin-bottom: 0.35rem;">
+                <span>🔒 <em>Hue locked by D8 roll. Only Lightness & Saturation can be changed.</em></span>
+              </div>
+
               <div id="recolor-swatches" class="recolor-swatches"></div>
             </div>
           </div>
@@ -205,14 +240,19 @@
           <span id="draft-target-badge" class="draft-target-badge">Pick country to see points & complexity</span>
         </div>
         <div class="draft-country-row">
-          <input
-            type="text"
-            id="draft-country-select"
-            list="country-list"
-            placeholder="Search country (e.g. Norway, France, Japan...)"
-            oninput="handleDraftCountrySelect(this.value)"
-            onfocus="this.select()"
-          >
+          <div class="combobox-wrapper" id="draft-combobox-wrapper" style="flex: 1 1 200px;">
+            <input
+              type="text"
+              id="draft-country-select"
+              placeholder="Search country (e.g. Norway, France, Japan...)"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+            >
+            <button type="button" class="combobox-toggle-btn" id="draft-country-toggle" aria-label="Toggle country list" title="Browse countries">▾</button>
+            <div class="combobox-dropdown" id="draft-country-dropdown" style="display: none;"></div>
+          </div>
           <button type="button" class="small-btn" onclick="loadRandomDraftCountry()" title="Pick random country to test">🔀 Random Test</button>
         </div>
       </div>
@@ -268,44 +308,124 @@
             </select>
           </div>
 
-          <div class="form-row color-row">
-            <div id="color-picker" class="color-picker" role="group" aria-label="Flag colour">
-              <button type="button" class="color-swatch" data-color="Deep red" title="Deep red" aria-label="Deep red"></button>
-              <button type="button" class="color-swatch" data-color="Red" title="Red" aria-label="Red"></button>
-              <button type="button" class="color-swatch" data-color="Orange" title="Orange" aria-label="Orange"></button>
-              <button type="button" class="color-swatch" data-color="Yellow" title="Yellow" aria-label="Yellow"></button>
-              <button type="button" class="color-swatch" data-color="Deep green" title="Deep green" aria-label="Deep green"></button>
-              <button type="button" class="color-swatch" data-color="Green" title="Green" aria-label="Green"></button>
-              <button type="button" class="color-swatch" data-color="Deep blue" title="Deep blue" aria-label="Deep blue"></button>
-              <button type="button" class="color-swatch" data-color="Blue" title="Blue" aria-label="Blue"></button>
-              <button type="button" class="color-swatch" data-color="Light blue" title="Light blue" aria-label="Light blue"></button>
-              <button type="button" class="color-swatch" data-color="White" title="White" aria-label="White"></button>
-              <button type="button" class="color-swatch" data-color="Black" title="Black" aria-label="Black"></button>
+          <!-- Improved Colour Picker: Color Wheel, Lightness, Saturation, and 7 Core Flag Colours -->
+          <div class="form-row color-picker-wrapper">
+            <div class="color-picker-header">
+              <label for="lightness-slider"><strong>Colour & Tone:</strong></label>
+              <div class="color-info-chip">
+                <span id="color-name-badge">Red</span>
+                <span id="color-hex-badge" class="color-hex-badge">#CE1126</span>
+              </div>
+            </div>
+
+            <div class="color-picker-widget" id="main-color-picker-widget">
+              <!-- Left: Interactive Color Wheel -->
+              <div class="wheel-column">
+                <div class="wheel-container" id="wheel-container" title="Drag to adjust colour Hue & Saturation">
+                  <canvas id="color-wheel-canvas" width="130" height="130"></canvas>
+                  <div id="wheel-reticle" class="wheel-reticle"></div>
+                  <div id="wheel-lock-overlay" class="wheel-lock-overlay" style="display: none;">
+                    <span class="lock-icon">🔒</span>
+                    <span class="lock-text" id="wheel-lock-text">Hue Locked</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Swatch Preview, Sliders, and 7 Core Swatches -->
+              <div class="controls-column">
+                <div class="preview-and-sliders-row">
+                  <div class="preview-swatch-container">
+                    <div id="color-preview-circle" class="color-preview-circle" title="Current Selected Colour"></div>
+                    <span class="preview-label">Preview</span>
+                  </div>
+
+                  <div class="sliders-subgroup">
+                    <div class="slider-item">
+                      <div class="slider-label-row">
+                        <label for="lightness-slider">Lightness</label>
+                        <strong id="lightness-val-display">47%</strong>
+                      </div>
+                      <input type="range" id="lightness-slider" min="0" max="100" step="1" value="47" oninput="onMainLightnessInput(this.value)">
+                    </div>
+
+                    <div class="slider-item">
+                      <div class="slider-label-row">
+                        <label for="saturation-slider">Saturation</label>
+                        <strong id="saturation-val-display">85%</strong>
+                      </div>
+                      <input type="range" id="saturation-slider" min="0" max="100" step="1" value="85" oninput="onMainSaturationInput(this.value)">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 7 Core Swatches matching user specification: White, Black, Red, Blue, Green, Yellow, Orange -->
+                <div id="core-color-swatches" class="core-color-swatches" role="group" aria-label="Flag colour swatches">
+                  <div class="swatch-row-top">
+                    <button type="button" class="color-swatch" data-color="White" title="White" aria-label="White"></button>
+                    <button type="button" class="color-swatch" data-color="Black" title="Black" aria-label="Black"></button>
+                    <button type="button" class="color-swatch selected" data-color="Red" title="Red" aria-label="Red"></button>
+                    <button type="button" class="color-swatch" data-color="Blue" title="Blue" aria-label="Blue"></button>
+                    <button type="button" class="color-swatch" data-color="Green" title="Green" aria-label="Green"></button>
+                    <button type="button" class="color-swatch" data-color="Yellow" title="Yellow" aria-label="Yellow"></button>
+                  </div>
+                  <div class="swatch-row-bottom">
+                    <button type="button" class="color-swatch" data-color="Orange" title="Orange" aria-label="Orange"></button>
+                  </div>
+                </div>
+
+                <div id="dice-draft-color-rule-notice" class="dice-draft-color-rule-notice" style="display: none;">
+                  <span>🎲 <em>Hue locked to roll. Only Lightness & Saturation can be adjusted.</em></span>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="form-row add-shape-row">
-            <button class="primary" onclick="addElement()">+ Add</button>
+            <button class="primary" onclick="addElement()">+ Add Shape to Flag</button>
           </div>
         </div>
 
         <div class="form-group">
-          <h2>Special & Other Elements</h2>
-          <div class="form-row">
-            <button class="secondary" onclick="addSunElement()">☀️ Add Sun</button>
-            <button class="secondary" onclick="addCoatOfArmsPreset()">🛡️ Shield Crest</button>
+          <h2>🎖️ Flag Charges & Coats of Arms</h2>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom: 0.4rem;">
+            Vector coats of arms, crests, and national symbols from official flags.
+          </p>
+
+          <!-- Quick Access Chips -->
+          <div class="charge-quick-chips">
+            <button type="button" class="preset-pill" onclick="addChargeById('sol_de_mayo')">☀️ Sun of May</button>
+            <button type="button" class="preset-pill" onclick="addChargeById('maple_leaf')">🍁 Maple Leaf</button>
+            <button type="button" class="preset-pill" onclick="addChargeById('double_headed_eagle')">🦅 Double Eagle</button>
+            <button type="button" class="preset-pill" onclick="addChargeById('cedar_tree')">🌲 Lebanese Cedar</button>
+            <button type="button" class="preset-pill" onclick="addChargeById('ashoka_chakra')">☸️ Ashoka Chakra</button>
+            <button type="button" class="preset-pill" onclick="addChargeById('spanish_shield')">🛡️ Royal Shield</button>
           </div>
 
-          <div class="form-row" style="margin-top: 0.75rem;">
-            <label for="emblem-select" style="font-size: 0.85rem; width: 100%;">
-              <strong>National Emblem / Coat of Arms:</strong>
-            </label>
-          </div>
-          <div class="form-row" style="margin-top: 0.25rem;">
-            <select id="emblem-select" style="flex: 1;" disabled>
-              <option value="">Loading emblems...</option>
-            </select>
-            <button class="primary" id="add-emblem-btn" onclick="addSelectedEmblem()" disabled>+ Add</button>
+          <!-- Detailed Catalog Selector with Live Thumbnail Preview -->
+          <div class="charge-selector-card">
+            <div class="charge-preview-box" id="charge-live-preview">
+              <!-- SVG preview injected dynamically -->
+            </div>
+            <div class="charge-selector-controls">
+              <div class="form-row" style="margin: 0; gap: 0.3rem;">
+                <select id="charge-category-filter" style="font-size: 0.78rem; flex: 1;" onchange="filterChargesByCategory(this.value)">
+                  <option value="ALL">All Categories</option>
+                  <option value="Celestial">Celestial & Astral</option>
+                  <option value="Nature">Nature & Plants</option>
+                  <option value="Beasts">Beasts & Animals</option>
+                  <option value="Heraldry">Heraldry & Shields</option>
+                  <option value="Emblems">Emblems & Symbols</option>
+                </select>
+              </div>
+              <div class="form-row" style="margin: 0.25rem 0 0 0; gap: 0.3rem;">
+                <select id="emblem-select" style="font-size: 0.82rem; flex: 1;" onchange="onChargeSelectChange(this.value)">
+                  <!-- Populated dynamically from FLAG_CHARGES -->
+                </select>
+              </div>
+              <div class="form-row" style="margin: 0.35rem 0 0 0; justify-content: flex-end;">
+                <button class="primary" id="add-emblem-btn" style="width: 100%;" onclick="addSelectedEmblem()">+ Add Charge to Flag</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -315,12 +435,12 @@
         <div class="form-group">
           <h2>Dice Draft (Roll One by One)</h2>
           <p style="font-size:0.8rem; color:var(--text-muted); line-height: 1.35;">
-            Roll <strong>2D6</strong> for shape + <strong>1D12</strong> for colour. Roll elements one by one, assemble your flag, then choose a country to test against. Unused pieces lose 5 pts!
+            Roll <strong>2D6</strong> for shape + <strong>1D8</strong> for colour. Roll elements one by one, assemble your flag, then choose a country to test against. Unused pieces lose 5 pts!
           </p>
 
           <div class="dice-arena">
             <div class="dice-group">
-              <span class="dice-label">Shape (2D6)</span>
+              <span class="dice-label" id="shape-dice-label">Shape (2D6)</span>
               <div class="dice-pair">
                 <div id="die-1" class="d6-die">🎲</div>
                 <div id="die-2" class="d6-die">🎲</div>
@@ -329,8 +449,8 @@
             </div>
 
             <div class="dice-group">
-              <span class="dice-label">Colour (1D12)</span>
-              <div id="die-d12" class="d12-die">🎲</div>
+              <span class="dice-label">Colour (1D8)</span>
+              <div id="die-d8" class="d8-die">🎲</div>
               <span id="color-roll-result" class="roll-result-text">Ready to roll</span>
             </div>
           </div>
@@ -339,9 +459,8 @@
             <span id="latest-roll-text">Rolled: Rectangle (Blue)</span>
           </div>
 
-          <div class="form-row" style="margin-top: 0.5rem; justify-content: space-between; flex-wrap: wrap; gap: 0.4rem;">
-            <button id="roll-element-btn" class="primary" style="flex: 1 1 150px;" onclick="rollNextElement()">🎲 Roll Element</button>
-            <button class="secondary" style="flex: 1 1 110px;" onclick="resetDiceDraftGame()">🔄 Reset Draft</button>
+          <div class="form-row" style="margin-top: 0.5rem;">
+            <button id="roll-element-btn" class="primary" style="width: 100%;" onclick="rollNextElement()">🎲 Roll Element</button>
           </div>
         </div>
 
@@ -366,6 +485,7 @@
 
   <div id="modal-root"></div>
 
+  <script src="charges.js"></script>
   <script src="script.js" defer></script>
 </body>
 </html>
