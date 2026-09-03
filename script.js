@@ -480,8 +480,14 @@ function setGameMode(mode) {
     if (randomButton) randomButton.disabled = true;
   }
 
+  const dupBtn = document.getElementById('trans-duplicate-btn');
+  if (dupBtn) {
+    dupBtn.style.display = (mode === 'dice-draft') ? 'none' : 'inline-block';
+  }
+
   updateColorPickerLockState();
   updateTargetPointsDisplay();
+  renderLayerList();
 }
 
 function loadDailyChallenge() {
@@ -1936,11 +1942,56 @@ function selectLayer(id) {
 
 function duplicateLayer(id, e) {
   if (e) e.stopPropagation();
-  // Copy / duplicate feature removed per design specification
+  if (currentGameMode === 'dice-draft') {
+    return;
+  }
+  const sourceLayer = layers.find(l => l.id === id);
+  if (!sourceLayer) return;
+
+  const newId = Date.now() + Math.floor(Math.random() * 1000);
+  const newLayer = JSON.parse(JSON.stringify(sourceLayer));
+  newLayer.id = newId;
+  delete newLayer.draftItemId;
+
+  // Offset position slightly so the duplicate is immediately visible and distinguishable
+  newLayer.x = Math.round(Math.min(580, Math.max(20, (sourceLayer.x || 300) + 20)));
+  newLayer.y = Math.round(Math.min(380, Math.max(20, (sourceLayer.y || 200) + 20)));
+
+  // Re-prefix Charge SVG IDs to avoid id collisions with source layer
+  if (newLayer.shape === 'Charge') {
+    if (newLayer.svgInnerContent) {
+      const oldPrefix = 'ch_' + sourceLayer.id + '_';
+      const newPrefix = 'ch_' + newId + '_';
+      newLayer.svgInnerContent = newLayer.svgInnerContent.split(oldPrefix).join(newPrefix);
+    } else if (newLayer.chargeId && typeof loadChargeSvg === 'function') {
+      loadChargeSvg(newLayer.chargeId).then(rawSvg => {
+        if (rawSvg) {
+          const prep = prepareSvgForLayer(rawSvg, newLayer.id);
+          newLayer.viewBox = prep.viewBox;
+          newLayer.svgInnerContent = prep.inner;
+          renderLayers();
+        }
+      });
+    }
+  }
+
+  // Insert immediately above the duplicated layer
+  const idx = layers.findIndex(l => l.id === id);
+  if (idx !== -1) {
+    layers.splice(idx + 1, 0, newLayer);
+  } else {
+    layers.push(newLayer);
+  }
+
+  selectedId = newLayer.id;
+  render();
 }
 
 function duplicateSelectedLayer() {
-  // Copy / duplicate feature removed per design specification
+  if (currentGameMode === 'dice-draft') return;
+  if (selectedId !== null) {
+    duplicateLayer(selectedId);
+  }
 }
 
 function deleteLayer(id, e) {
@@ -2448,6 +2499,11 @@ function renderLayerList() {
     const draftItem = draftedItems.find(d => d.layerId === layer.id);
     const isOccludedBadge = (draftItem && draftItem.isOccluded) ? '<span style="color:#f87171; font-size:0.75rem; margin-left:4px; font-weight:700;" title="This shape is covered by other layers or off-canvas and will count as unused!">⚠️ (Hidden)</span>' : '';
 
+    const isDiceDraft = (currentGameMode === 'dice-draft');
+    const duplicateButtonHtml = !isDiceDraft 
+      ? `<button onclick="duplicateLayer(${layer.id}, event)" title="Duplicate / copy layer">📋</button>`
+      : '';
+
     item.innerHTML = `
       <div style="display:flex; align-items:center;">
         <span class="layer-preview" style="background-color:${layer.hex};"></span>
@@ -2456,6 +2512,7 @@ function renderLayerList() {
       <div class="layer-controls">
         <button onclick="moveLayer(${layer.id}, -1, event)" ${idx === 0 ? 'disabled' : ''} title="Move layer up">▲</button>
         <button onclick="moveLayer(${layer.id}, 1, event)" ${idx === layers.length - 1 ? 'disabled' : ''} title="Move layer down">▼</button>
+        ${duplicateButtonHtml}
         <button class="danger" onclick="deleteLayer(${layer.id}, event)" title="Delete layer">✕</button>
       </div>
     `;
@@ -2499,6 +2556,8 @@ function renderTransformInspector() {
   const dotEl = document.getElementById('trans-color-dot');
   const nameEl = document.getElementById('trans-shape-name');
   const badgeEl = document.getElementById('trans-layer-badge');
+  const dupBtn = document.getElementById('trans-duplicate-btn');
+  if (dupBtn) dupBtn.style.display = (currentGameMode === 'dice-draft') ? 'none' : 'inline-block';
   if (dotEl) dotEl.style.backgroundColor = activeLayer.hex;
   if (nameEl) nameEl.textContent = activeLayer.shape === 'Charge' ? (activeLayer.chargeName || 'Flag Charge') : activeLayer.shape;
   if (badgeEl) {
@@ -3398,6 +3457,26 @@ function showComparisonModal(userCanvas, officialCanvas, scorePct, points, maxPo
 function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
 }
+
+// Global Keyboard Shortcuts (Ctrl/Cmd + D for Duplicate, Delete for Remove)
+window.addEventListener('keydown', (e) => {
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) {
+    return;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+    if (currentGameMode !== 'dice-draft' && selectedId !== null) {
+      e.preventDefault();
+      duplicateSelectedLayer();
+    }
+  } else if (e.key === 'Delete') {
+    if (selectedId !== null) {
+      e.preventDefault();
+      deleteSelectedLayer();
+    }
+  }
+});
 
 document.querySelectorAll('#core-color-swatches .color-swatch').forEach(swatch => {
   swatch.addEventListener('click', () => selectColor(swatch.dataset.color));
