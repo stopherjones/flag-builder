@@ -796,8 +796,7 @@ function prepareSvgForLayer(svgString, layerId) {
 
   const prefix = 'ch_' + layerId + '_';
   inner = inner.replace(/\bid=(["'])([^"']+)\1/g, (m, q, id) => 'id=' + q + prefix + id + q);
-  inner = inner.replace(/\bhref=(["'])#([^"']+)\1/g, (m, q, id) => 'href=' + q + '#' + prefix + id + q);
-  inner = inner.replace(/\bxlink:href=(["'])#([^"']+)\1/g, (m, q, id) => 'xlink:href=' + q + '#' + prefix + id + q);
+  inner = inner.replace(/\b(?:xlink:)?href=(["'])#([^"']+)\1/g, (m, q, id) => m.startsWith('xlink:') ? 'xlink:href=' + q + '#' + prefix + id + q : 'href=' + q + '#' + prefix + id + q);
   inner = inner.replace(/url\(#([^)]+)\)/g, (m, id) => 'url(#' + prefix + id + ')');
 
   return { viewBox, inner };
