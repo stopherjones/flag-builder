@@ -40,7 +40,7 @@
         <span id="target-points" style="font-size: 0.85rem; color: var(--accent);">Loading...</span>
       </div>
       <div id="dice-draft-top-banner" class="draft-mode-top-banner" style="display: none;">
-        <span>🎲 <strong>Dice Draft Mode:</strong> Roll pieces one by one, assemble your flag, then choose your country below to score!</span>
+        <span>🎲 <strong>Dice Draft Mode:</strong> You start with a rectangle, but roll for colour, then roll additional elements. Assemble your flag, then choose your country below to score!</span>
       </div>
     </div>
   </header>
@@ -234,30 +234,6 @@
         <span>💡 Drag shapes directly on canvas, or use the precision sliders & nudge pad above.</span>
       </div>
 
-      <!-- Dice Draft Dedicated Country Test Selector -->
-      <div id="dice-draft-country-test-section" class="draft-test-section" style="display: none;">
-        <div class="draft-test-header">
-          <label for="draft-country-select"><strong>🎯 Select Country to Test Against:</strong></label>
-          <span id="draft-target-badge" class="draft-target-badge">Pick country to see points & complexity</span>
-        </div>
-        <div class="draft-country-row">
-          <div class="combobox-wrapper" id="draft-combobox-wrapper" style="flex: 1 1 200px;">
-            <input
-              type="text"
-              id="draft-country-select"
-              placeholder="Search country (e.g. Norway, France, Japan...)"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-            >
-            <button type="button" class="combobox-toggle-btn" id="draft-country-toggle" aria-label="Toggle country list" title="Browse countries">▾</button>
-            <div class="combobox-dropdown" id="draft-country-dropdown" style="display: none;"></div>
-          </div>
-          <button type="button" class="small-btn" onclick="loadRandomDraftCountry()" title="Pick random country to test">🔀 Random Test</button>
-        </div>
-      </div>
-
       <div class="form-row">
         <button class="primary" id="submit-btn" onclick="evaluateSubmission()">Submit & Score</button>
         <button onclick="clearCanvas()">Clear Canvas</button>
@@ -421,7 +397,7 @@
         <div class="form-group">
           <h2>Dice Draft (Roll One by One)</h2>
           <p style="font-size:0.8rem; color:var(--text-muted); line-height: 1.35;">
-            Roll <strong>2D6</strong> for shape + <strong>1D8</strong> for colour. Roll elements one by one, assemble your flag, then choose a country to test against. Unused pieces lose 5 pts!
+            You start with a rectangle, but roll for colour, then roll additional elements one by one. Assemble your flag, then choose your country below to score. Unused pieces lose 5 pts!
           </p>
 
           <div class="dice-arena">
@@ -465,6 +441,29 @@
           Drag shape to move. Drag handles to resize or top icon to rotate (snaps to edges & common angles).
         </p>
         <div id="layer-list" class="layer-list"></div>
+      </div>
+
+      <!-- Dice Draft Dedicated Country Test Selector (Underneath Active Layer Stack) -->
+      <div id="dice-draft-country-test-section" class="draft-test-section" style="display: none;">
+        <div class="draft-test-header">
+          <label for="draft-country-select"><strong>🎯 Select Country to Test Against:</strong></label>
+          <span id="draft-target-badge" class="draft-target-badge">Pick country to see points & complexity</span>
+        </div>
+        <div class="draft-country-row">
+          <div class="combobox-wrapper" id="draft-combobox-wrapper" style="flex: 1 1 200px;">
+            <input
+              type="text"
+              id="draft-country-select"
+              placeholder="Search country (e.g. Norway, France, Japan...)"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+            >
+            <button type="button" class="combobox-toggle-btn" id="draft-country-toggle" aria-label="Toggle country list" title="Browse countries">▾</button>
+            <div class="combobox-dropdown" id="draft-country-dropdown" style="display: none;"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

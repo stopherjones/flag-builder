@@ -933,7 +933,8 @@ function placeDraftItem(draftId) {
 function updateDraftLightness(draftId, val) {
   const item = draftedItems.find(d => d.id === draftId);
   if (!item) return;
-  const num = parseInt(val, 10);
+  // In Dice Draft mode, lightness is constrained to 20-80% to prevent turning rolled colour into black or white
+  const num = Math.max(20, Math.min(80, parseInt(val, 10)));
   item.lightness = num;
   item.hex = hslToHex(item.hue !== undefined ? item.hue : 0, item.saturation !== undefined ? item.saturation : 85, num);
 
@@ -956,7 +957,8 @@ function updateDraftLightness(draftId, val) {
 function updateDraftSaturation(draftId, val) {
   const item = draftedItems.find(d => d.id === draftId);
   if (!item) return;
-  const num = parseInt(val, 10);
+  // Constrain saturation to min 25% to preserve rolled colour tone
+  const num = Math.max(25, Math.min(100, parseInt(val, 10)));
   item.saturation = num;
   item.hex = hslToHex(item.hue !== undefined ? item.hue : 0, num, item.lightness !== undefined ? item.lightness : 50);
 
@@ -1192,15 +1194,15 @@ function renderDraftedTray() {
         <div class="draft-slider-row" style="display:flex; flex-direction:column; gap:0.25rem; margin-top:0.35rem; background:rgba(0,0,0,0.2); padding:0.4rem 0.5rem; border-radius:4px;">
           <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem;">
             <span style="color:var(--text-muted);">Lightness:</span>
-            <strong id="draft-item-l-${item.id}" style="color:var(--text-main); font-weight:700;">${item.lightness !== undefined ? item.lightness : 50}%</strong>
+            <strong id="draft-item-l-${item.id}" style="color:var(--text-main); font-weight:700;">${item.lightness !== undefined ? Math.max(20, Math.min(80, item.lightness)) : 50}%</strong>
           </div>
-          <input type="range" min="0" max="100" value="${item.lightness !== undefined ? item.lightness : 50}" oninput="updateDraftLightness(${item.id}, this.value)" style="width:100%; height:14px; accent-color:var(--accent);">
+          <input type="range" min="20" max="80" value="${item.lightness !== undefined ? Math.max(20, Math.min(80, item.lightness)) : 50}" oninput="updateDraftLightness(${item.id}, this.value)" style="width:100%; height:14px; accent-color:var(--accent);">
 
           <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.72rem; margin-top:0.15rem;">
             <span style="color:var(--text-muted);">Saturation:</span>
-            <strong id="draft-item-s-${item.id}" style="color:var(--text-main); font-weight:700;">${item.saturation !== undefined ? item.saturation : 85}%</strong>
+            <strong id="draft-item-s-${item.id}" style="color:var(--text-main); font-weight:700;">${item.saturation !== undefined ? Math.max(25, item.saturation) : 85}%</strong>
           </div>
-          <input type="range" min="0" max="100" value="${item.saturation !== undefined ? item.saturation : 85}" oninput="updateDraftSaturation(${item.id}, this.value)" style="width:100%; height:14px; accent-color:var(--accent);">
+          <input type="range" min="25" max="100" value="${item.saturation !== undefined ? Math.max(25, item.saturation) : 85}" oninput="updateDraftSaturation(${item.id}, this.value)" style="width:100%; height:14px; accent-color:var(--accent);">
         </div>
       `;
     }
@@ -2657,13 +2659,31 @@ function renderRecolorPalette(activeLayer) {
     }
   }
 
+  const isDiceDraft = (currentGameMode === 'dice-draft' || Boolean(activeLayer.draftItemId));
+
   if (hexBadge) hexBadge.textContent = (activeLayer.hex || '#CE1126').toUpperCase();
   if (lightnessSlider) {
+    if (isDiceDraft) {
+      lightnessSlider.min = '20';
+      lightnessSlider.max = '80';
+      activeLayer.lightness = Math.max(20, Math.min(80, activeLayer.lightness));
+    } else {
+      lightnessSlider.min = '0';
+      lightnessSlider.max = '100';
+    }
     lightnessSlider.value = activeLayer.lightness;
     lightnessSlider.disabled = isAchromatic;
   }
   if (lightnessDisplay) lightnessDisplay.textContent = `${activeLayer.lightness}%`;
   if (saturationSlider) {
+    if (isDiceDraft) {
+      saturationSlider.min = '25';
+      saturationSlider.max = '100';
+      activeLayer.saturation = Math.max(25, Math.min(100, activeLayer.saturation));
+    } else {
+      saturationSlider.min = '0';
+      saturationSlider.max = '100';
+    }
     saturationSlider.value = activeLayer.saturation;
     saturationSlider.disabled = isAchromatic;
   }
@@ -2693,7 +2713,13 @@ function renderRecolorPalette(activeLayer) {
     swatch.title = colorName;
     swatch.style.backgroundColor = def.hex;
 
-    if (isLocked && colorName !== activeLayer.color) {
+    if (isDiceDraft && (colorName === 'Black' || colorName === 'White') && activeLayer.color !== colorName) {
+      swatch.classList.add('locked-out');
+      swatch.title = `${colorName} (Cannot turn rolled colour into black or white in Dice Draft)`;
+      swatch.onclick = () => {
+        alert("In Dice Draft mode, you cannot turn a rolled colour into black or white.");
+      };
+    } else if (isLocked && colorName !== activeLayer.color) {
       swatch.classList.add('locked-out');
       swatch.title = `${colorName} (Locked by D8 roll)`;
       swatch.onclick = () => {
@@ -2701,6 +2727,10 @@ function renderRecolorPalette(activeLayer) {
       };
     } else {
       swatch.onclick = () => {
+        if (isDiceDraft && (colorName === 'Black' || colorName === 'White')) {
+          alert("In Dice Draft mode, you cannot turn a rolled colour into black or white.");
+          return;
+        }
         activeLayer.color = colorName;
         activeLayer.hue = def.h;
         activeLayer.saturation = def.s;
@@ -2717,6 +2747,10 @@ function renderRecolorPalette(activeLayer) {
 function recolorSelectedLayer(colorName, hexVal) {
   const activeLayer = layers.find(l => l.id === selectedId);
   if (!activeLayer) return;
+  if ((currentGameMode === 'dice-draft' || activeLayer.draftItemId) && (colorName === 'Black' || colorName === 'White')) {
+    alert("In Dice Draft mode, you cannot turn a rolled colour into black or white.");
+    return;
+  }
   if (activeLayer.draftItemId && activeLayer.isHueLocked && activeLayer.color !== colorName) {
     alert(`In Dice Draft mode, this element's hue is locked to ${activeLayer.color}. You can adjust its Lightness and Saturation!`);
     return;
@@ -2734,7 +2768,10 @@ function recolorSelectedLayer(colorName, hexVal) {
 function onInspectorLightnessInput(val) {
   const activeLayer = layers.find(l => l.id === selectedId);
   if (!activeLayer) return;
-  const num = parseInt(val, 10);
+  let num = parseInt(val, 10);
+  if (currentGameMode === 'dice-draft' || activeLayer.draftItemId) {
+    num = Math.max(20, Math.min(80, num));
+  }
   activeLayer.lightness = num;
   if (activeLayer.hue === undefined) {
     const hsl = hexToHsl(activeLayer.hex || '#ce1126');
@@ -2769,7 +2806,10 @@ function onInspectorLightnessInput(val) {
 function onInspectorSaturationInput(val) {
   const activeLayer = layers.find(l => l.id === selectedId);
   if (!activeLayer) return;
-  const num = parseInt(val, 10);
+  let num = parseInt(val, 10);
+  if (currentGameMode === 'dice-draft' || activeLayer.draftItemId) {
+    num = Math.max(25, Math.min(100, num));
+  }
   activeLayer.saturation = num;
   if (activeLayer.hue === undefined) {
     const hsl = hexToHsl(activeLayer.hex || '#ce1126');
